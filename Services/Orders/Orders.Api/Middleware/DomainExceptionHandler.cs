@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Orders.Domain.Exceptions;
 
 namespace Orders.Api.Middleware;
