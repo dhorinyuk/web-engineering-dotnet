@@ -1,90 +1,76 @@
 @startuml
-' ERD for Project 2: Catalog & Inventory Management Context (SQL Server for EF Core)
 !theme plain
 skinparam linetype ortho
-skinparam roundcorner 5
+skinparam roundcorner 4
 
 entity "Brands" as brands {
-    * Id : INT <<generated, PK>>
+    * Id : INT <<PK, identity>>
     --
     * Name : NVARCHAR(100) <<UQ>>
     * Code : NVARCHAR(50) <<UQ>>
     * Country : NVARCHAR(60)
-    WebsiteUrl : NVARCHAR(255)
     * IsActive : BIT
     * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
 }
 
 entity "Categories" as categories {
-    * Id : INT <<generated, PK>>
+    * Id : INT <<PK, identity>>
     --
     ParentCategoryId : INT <<FK, self-ref>>
     * Name : NVARCHAR(100)
     * Slug : NVARCHAR(120) <<UQ>>
-    Description : NVARCHAR(500)
     * DisplayOrder : INT
     * IsActive : BIT
     * CreatedAt : DATETIME2
 }
 
 entity "Products" as products {
-    * Id : INT <<generated, PK>>
+    * Id : INT <<PK, identity>>
     --
     * BrandId : INT <<FK>>
-    * SKU : NVARCHAR(60) <<UQ>>
+    * Sku : NVARCHAR(64) <<UQ>>
     * Name : NVARCHAR(200)
-    * Slug : NVARCHAR(220) <<UQ>>
     * Price : DECIMAL(18,2)
     * CostPrice : DECIMAL(18,2)
     * WeightKg : DECIMAL(8,3)
     * IsAvailable : BIT
+    * RowVersion : ROWVERSION
     * CreatedAt : DATETIME2
     UpdatedAt : DATETIME2
 }
 
+entity "ProductDetails" as product_details {
+    * ProductId : INT <<PK, FK>>
+    --
+    * TechnicalDescription : NVARCHAR(MAX)
+    * WarrantyMonths : INT
+    * CountryOfOrigin : NVARCHAR(60)
+    Dimensions : NVARCHAR(100)
+    InstallationGuideUrl : NVARCHAR(255)
+}
+
 entity "ProductCategories" as product_categories {
-    * ProductId : INT <<FK, PK>>
-    * CategoryId : INT <<FK, PK>>
+    * ProductId : INT <<PK, FK>>
+    * CategoryId : INT <<PK, FK>>
     --
     * IsPrimary : BIT
     * AssignedAt : DATETIME2
 }
 
-entity "ProductDetails" as product_details {
-    * ProductId : INT <<FK, PK>>
+entity "ProductReviewsSummary" as reviews_summary {
+    * ProductId : INT <<PK, FK>>
     --
-    * TechnicalDescription : NVARCHAR(MAX)
-    * WarrantyMonths : INT
-    * CountryOfOrigin : NVARCHAR(60)
-    PackageDimensions : NVARCHAR(100)
-    EAN13 : NVARCHAR(13)
-    InstallationGuideUrl : NVARCHAR(255)
-    SafetyInstructions : NVARCHAR(MAX)
-    * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
+    * AverageRating : DECIMAL(3,2)
+    * TotalReviewsCount : INT
+    LastReviewedAt : DATETIME2
+    * UpdatedAt : DATETIME2
 }
 
-entity "InventoryStocks" as inventory_stocks {
-    * Id : INT <<generated, PK>>
-    --
-    * ProductId : INT <<FK>>
-    * WarehouseCode : NVARCHAR(30)
-    * QuantityOnHand : INT
-    * ReservedQuantity : INT
-    * ReorderThreshold : INT
-    BinLocation : NVARCHAR(30)
-    LastRestockedAt : DATETIME2
-    * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
-}
-
-' Relationships
-brands ||--o{ products : "1:N (produces)"
-categories ||--o{ categories : "1:N (subcategories)"
-products ||--|{ product_categories : "M:N via ProductCategories"
-categories ||--|{ product_categories : "M:N via ProductCategories"
-products ||--|| product_details : "1:1 (technical details)"
-products ||--o{ inventory_stocks : "1:N (stock by warehouse)"
+brands ||--o{ products : "manufactures"
+categories ||--o{ categories : "subcategories"
+products ||--|{ product_categories : "categorized in"
+categories ||--|{ product_categories : "contains"
+products ||--|| product_details : "technical specifications"
+products ||--|| reviews_summary : "aggregated reviews cache"
 
 @enduml

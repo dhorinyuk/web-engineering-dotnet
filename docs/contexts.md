@@ -1,126 +1,64 @@
-# Архітектура обмежених контекстів (Bounded Contexts)
+# Bounded Contexts Architecture
 
-## Предметна область: Інтернет-магазин автотоварів та інструментів (AutoParts & Tools E-Commerce)
+## Overview
 
-Сучасна платформа електронної комерції у сфері автотоварів та автоінструментів характеризується специфічними бізнес-вимогами:
-* Високі вимоги до надійності фінансових операцій та обробки замовлень.
-* Складна ієрархія товарів з поліморфними характеристиками (наприклад, моторні оливи мають в'язкість та допуски автовиробників, гальмівні диски — діаметр, товщину та розташування отворів, а динамометричні ключі — робочий діапазон моменту затягування).
-* Потреба у швидкому пошуку сумісності деталей за маркою, моделлю, поколінням авто та кодом двигуна (Vehicle Fitment / TecDoc-подібна структура).
-* Розподіл навантаження між інтенсивним читанням каталогу і критичними транзакціями оформлення та зміни статусів замовлень.
-
-Для забезпечення високої масштабованості, відмовостійкості та автономності команд система розділена на три незалежні обмежені контексти (Bounded Contexts) згідно з принципами предметно-орієнтованого проєктування (Domain-Driven Design, DDD) та поліглотного зберігання даних (Polyglot Persistence).
+The platform is designed around Domain-Driven Design (DDD) principles with decoupled bounded contexts, polyglot persistence, and asynchronous integration.
 
 ```
-+-----------------------------------------------------------------------------------+
-|                            E-Commerce Platform Core                               |
-+-----------------------------------------------------------------------------------+
-           |                                   |                             |
-           v                                   v                             v
-+-----------------------+           +-----------------------+     +-----------------------+
-|      Проєкт №1        |           |      Проєкт №2        |     |      Проєкт №3        |
-|  Orders & Fulfillment |           |  Catalog & Inventory  |     |  Vehicle Fitment,     |
-|      (P1 - OLTP)      |           |     (P2 - EF Core)    |     |  Specs & Reviews      |
-|      SQL Server       |           |      SQL Server       |     |     (P3 - NoSQL)      |
-|                       |           |                       |     |       MongoDB         |
-+-----------------------+           +-----------------------+     +-----------------------+
+                    +-----------------------------+
+                    |  Catalog Context (P2)       |
+                    |  SQL Server (EF Core)       |
+                    +-----------------------------+
+                                   |
+         ProductCreatedEvent       | ProductCreatedEvent
+         ProductPriceChangedEvent  |
+                                   v
++-----------------------------+   +-----------------------------+
+|  Ordering Context (P1)      |   |  Reviews Context (P3)       |
+|  SQL Server (OLTP)          |   |  MongoDB (Document Store)   |
++-----------------------------+   +-----------------------------+
 ```
 
 ---
 
-## 1. Контекст №1: Керування замовленнями та виконанням (Orders & Fulfillment Context)
+## 1. Ordering Context (db/p1)
 
-### 1.1. Призначення та межі відповідальності
-Контекст **Orders & Fulfillment** відповідає за життєвий цикл покупки користувача від формування кошика/замовлення до повної оплати, відвантаження зі складу та вручення клієнту через службу доставки.
-
-**Ключові обов'язки:**
-* Реєстрація клієнтів у контексті продажів (`Customers`).
-* Створення замовлень та формування позицій замовлення (`Orders`, `OrderItems`).
-* Фіксація знімка цін товарів (Price Snapshotting) на момент укладання угоди.
-* Фінансові транзакції оплати через платіжні шлюзи (`PaymentTransactions`).
-* Логістика та взаємодія зі службами доставки (Нова Пошта, Meest, тощо) через сутність `OrderDeliveries` (зв'язок 1:1 з замовленням).
-* Суворий контроль станів замовлення та аудит усіх переходів статусів (`OrderStatusHistory`) за допомогою транзакційних збережуваних процедур з блокуванням рядків (`UPDLOCK`).
-* Застосування маркетингових знижок та промокодів (`Promotions`, `OrderPromotions` — зв'язок M:N).
-
-### 1.2. Вибір сховища даних
-* **СУБД:** Microsoft SQL Server.
-* **Причина вибору:** Потреба у суворій відповідності вимогам ACID (Atomicity, Consistency, Isolation, Durability), надійна підтримка розподілених транзакцій, блокування на рівні рядків (`ROWLOCK`, `UPDLOCK`), збереження фінансової звітності та запобігання втрати грошей чи замовлень під час паралельних звернень.
-* **Механізми цілісності та аудиту:**
-  * Первинні ключі (`PK_*`), зовнішні ключі (`FK_*`) виключно всередині контексту.
-  * Обмеження `CHECK` на невід'ємність сум і кількості, коректність статусів, валідність форматів email.
-  * Аудит-поля: `CreatedAt` (DATETIME2 UTC), `UpdatedAt` (DATETIME2 UTC).
-  * М'яке видалення: прапорець `IsDeleted` (BIT).
-  * Оптимістичне блокування: `RowVersion` (стовпець типу `ROWVERSION` / `TIMESTAMP`) для виявлення конфліктів паралельного редагування.
-
-### 1.3. Принцип автономності
-Таблиці контексту **НЕ МІСТЯТЬ жодних зовнішніх ключів (Foreign Keys) на таблиці інших сервісів**. Зовнішні ідентифікатори (наприклад, `ExternalUserId` з сервісу авторизації, `ExternalProductId` з каталогу товарів) зберігаються як скалярні значення. Це забезпечує повну працездатність підсистеми замовлень навіть під час перезавантаження або технічного обслуговування сервісу каталогу.
+* **Purpose:** Handles customer order placement, transactional state machine progression, payment registration, and shipping execution.
+* **Storage:** Microsoft SQL Server.
+* **Aggregates and Entities:**
+  * `Orders`: Aggregate root controlling order lifecycle and total amount calculations.
+  * `OrderDetails`: 1:1 delivery metadata entity (recipient, shipping destination, tracking information).
+  * `OrderItems`: M:N line items joining orders with local product projections.
+  * `Customers`: Context-local customer profile referencing external identity through `ExternalId`.
+  * `Products`: Local catalog cache maintained without cross-database foreign keys.
+  * `OrderStatusHistory`: Immutable transition audit log.
+* **Concurrency and Integrity:** Optimistic concurrency via `RowVersion`, exclusive state transitions via `SELECT ... WITH (UPDLOCK, ROWLOCK)`, soft delete (`IsDeleted`).
 
 ---
 
-## 2. Контекст №2: Каталог автотоварів та складський облік (Catalog & Inventory Context)
+## 2. Catalog Context (db/p2)
 
-### 2.1. Призначення та межі відповідальності
-Контекст **Catalog & Inventory** є центральним джерелом істини (Single Source of Truth) щодо асортименту магазину, структури категорій, брендів-виробників, технічних характеристик за замовчуванням та фізичних залишків на складах.
-
-**Ключові обов'язки:**
-* Ведення брендів автотоварів та інструментів (`Brands`: Bosch, Brembo, Motul, Toptul тощо) — зв'язок 1:N з товарами.
-* Деревоподібна ієрархія категорій (`Categories`: Автозапчастини -> Гальмівна система -> Гальмівні колодки).
-* Номенклатура товарів (`Products`) з унікальними артикулами (SKU), базовими цінами, вагою та габаритами.
-* Багатокатегорійність товарів через зв'язок M:N та проміжну таблицю `ProductCategories`. Таблиця **має власні бізнес-поля**:
-  * `IsPrimary` (BIT) — визначає, чи є дана категорія основною для хлібних крихт (Breadcrumbs) та канонічного URL товару.
-  * `AssignedAt` (DATETIME2) — час прив'язки товару до категорії.
-* Розширені технічні деталі та гарантійні зобов'язання (`ProductDetails` — зв'язок 1:1 з `Products`).
-* Облік фізичних та зарезервованих залишків на різних складах (`InventoryStocks` — зв'язок 1:N з `Products`).
-
-### 2.2. Вибір сховища даних та орієнтація на Entity Framework Core
-* **СУБД:** Microsoft SQL Server.
-* **Причина вибору:** Відмінна підтримка об'єктно-реляційного відображення (ORM) через Entity Framework Core. Схема спроєктована за стандартами .NET EF Core: конвенції іменування, сурогатні ідентифікатори `Id`, чітке розмежування навігаційних властивостей для зв'язків 1:1 (`Product` <-> `ProductDetail`), 1:N (`Brand` -> `Products`, `Product` -> `InventoryStocks`) та явна проміжна сутність `ProductCategories` для зв'язку M:N з додатковими атрибутами.
-* **Обмеження та оптимізація:** Створені покриваючі та унікальні індекси (`SKU`, `Slug`), обмеження `CHECK` на додатні ціни та залишки.
+* **Purpose:** Master repository for vehicle spare parts, manufacturer brands, taxonomy hierarchy, and product specifications.
+* **Storage:** Microsoft SQL Server configured for Entity Framework Core.
+* **Entities:**
+  * `Brands`: Manufacturer metadata (Bosch, Brembo, Motul, Toptul).
+  * `Categories`: Self-referencing hierarchical category graph.
+  * `Products`: Core product entity with inventory availability and pricing.
+  * `ProductDetails`: 1:1 technical specifications and warranty parameters.
+  * `ProductCategories`: Explicit M:N join entity with payload attributes (`IsPrimary`, `AssignedAt`).
+  * `ProductReviewsSummary`: Local read-model cache updated asynchronously from the reviews context.
+* **Integration Role:** Single Source of Truth for product identification (`Sku`, `Price`, `Name`).
 
 ---
 
-## 3. Контекст №3: Специфікації, сумісність з авто та відгуки (Vehicle Fitment, Specs & Reviews Context)
+## 3. Reviews and Feedback Context (db/p3)
 
-### 3.1. Призначення та межі відповідальності
-Сфера автотоварів вимагає зберігання високополіморфних та динамічних даних. Спроба втиснути характеристики тисяч різнорідних деталей (від моторних мастил із специфікаціями ACEA/API до пневмоінструменту з витратою повітря) в класичну реляційну схему призводить до проблеми "Sparse Columns" (сотні порожніх колонок) або антипатерну EAV (Entity-Attribute-Value).
-
-Крім того, пошук сумісності запчастини з конкретним автомобілем (рік, марка, модель, об'єм, код двигуна) потребує зручної структури вкладених масивів.
-
-**Ключові обов'язки:**
-* Зберігання динамічних поліморфних технічних специфікацій товарів (`product_specifications`).
-* Повний каталог оригінальних крос-номерів (OE/OEM) та сумісних модифікацій транспортних засобів (`vehicle_fitments`).
-* Збір та агрегація користувацьких відгуків з деталізованими оцінками за різними критеріями, фотографіями та підтвердженим контекстом автомобіля клієнта (`customer_reviews`).
-
-### 3.2. Вибір сховища даних
-* **СУБД:** MongoDB (документно-орієнтована NoSQL СУБД).
-* **Причина вибору:** Гнучка схема документів (Flexible Schema), нативна підтримка глибокої вкладеності (Embedding), швидкий повнотекстовий пошук (Text Indexes) за кодами та назвами, а також висока продуктивність при високому співвідношенні читання/запис (Read-Heavy workload).
-* **Застосування підходів Embedding та Referencing:**
-  * **Embedding (Вкладення):** Використовується для даних, які завжди читаються разом із батьківським документом:
-    * Вкладені параметри товару (`specifications.attributes`).
-    * Вкладені масиви сертифікатів та комплектації.
-    * Вкладений масив сумісних автомобілів (`compatible_vehicles`).
-    * Вкладені критерії оцінки відгуку (`ratings.breakdown`) та фотографії (`photos`).
-  * **Referencing (Посилання):** Використовується для зв'язку з сутностями інших контекстів без прямої залежності на рівні бази:
-    * `catalog_product_id` — посилання на первинний ключ `Product.Id` з Проєкту №2.
-    * `customer_id` та `order_id` — посилання на клієнта та замовлення з Проєкту №1 для валідації покупки ("Verified Purchase").
-* **Валідація схеми:** Застосовано `$jsonSchema` на рівні колекцій для контролю критичних типів даних, збереження структури обов'язкових полів та запобігання пошкодженню даних невалідними записами.
-
----
-
-## 4. Взаємодія між контекстами (Integration Strategy)
-
-```
-[ Catalog & Inventory (P2) ]
-       |
-       | (ProductCreatedEvent, PriceUpdatedEvent) via Message Broker
-       v
-+-------------------------------+-------------------------------+
-|                               |                               |
-v                               v                               v
-[ Orders Context (P1) ]         [ Specs & Reviews Context (P3) ]
-(Оновлює довідник SKU/цен       (Створює документ специфікацій
-для валідації кошика)           та очікує прив'язки сумісності)
-```
-
-1. **Подієва орієнтація (Event-Driven Architecture):** Взаємодія між сервісами базується на публікації та підписці на доменні події (Domain Events) через брокер повідомлень (RabbitMQ або Apache Kafka).
-2. **Патерн Transactional Outbox:** Сервіс замовлень (P1) записує факт зміни замовлення та доменну подію (наприклад, `OrderPaidEvent`) в одній транзакції в таблицю `OutboxMessages`, гарантуючи доставку повідомлення без використання повільних двофазних комітів (2PC).
-3. **Кінцева узгодженість (Eventual Consistency):** Зміни в каталозі (P2) чи відгуках (P3) не вимагають миттєвої транзакційної узгодженості з підсистемою замовлень. Контексти є слабозв'язаними (loosely coupled), що забезпечує стабільність платформи під час пікових навантажень (Black Friday).
+* **Purpose:** Customer feedback collection, multi-tier rating evaluations, and community discussion threads.
+* **Storage:** MongoDB (`ReviewsServiceDb`).
+* **Collections and Document Design:**
+  * `reviews`: Root document storing denormalized product identifiers, structured rating attributes, embedded author information, embedded comment arrays, and referencing links to discussions.
+  * `discussions`: Dedicated collection containing threaded Q&A and support discussions linked to reviews and products.
+  * `ratings`: Analytical read-model storing rating score distributions and aggregated averages per product.
+* **Modeling Paradigms:**
+  * **Embedding:** Embedded author metadata, embedded review comment replies, embedded photo attachments.
+  * **Referencing:** `productId` referencing catalog identity, `discussionId` referencing the discussion collection thread.

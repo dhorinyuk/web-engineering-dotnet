@@ -1,316 +1,173 @@
-/**
- * ============================================================================
- * Проєкт №3: Специфікації автотоварів, сумісність та відгуки
- * СУБД: MongoDB
- * Призначення: Ініціалізація колекцій з валідацією $jsonSchema, індексами,
- *              демонстрацією підходів Embedding та Referencing.
- * ============================================================================
- */
+// Reviews and customer feedback database initialization (MongoDB)
 
-const targetDb = db.getSiblingDB("autoparts_telemetry_reviews");
+const targetDb = db.getSiblingDB("ReviewsServiceDb");
 
-print("[INFO] Початок налаштування колекцій у базі autoparts_telemetry_reviews...");
-
-// ============================================================================
-// 1. Колекція: product_specifications
-// Демонструє поліморфну гнучку схему (Flexible Schema) для специфікацій олив,
-// колодок, інструментів, акумуляторів.
-// Referencing: catalog_product_id -> посилання на Product.Id з SQL Server (P2).
-// Embedding: specifications (вбудований документ параметрів),
-//            certificates (вбудований масив), package_contents (вбудований масив).
-// ============================================================================
-
-const productSpecsSchema = {
+// Schema validator for reviews collection with embedding and referencing
+const reviewsSchema = {
     $jsonSchema: {
         bsonType: "object",
-        required: ["catalog_product_id", "sku", "title", "product_type", "brand_code", "specifications"],
+        required: ["productId", "productName", "rating", "author"],
         properties: {
-            catalog_product_id: {
+            productId: {
                 bsonType: ["int", "long", "double"],
-                description: "Посилання на Product.Id у SQL Server Каталогу (P2) - Referencing"
+                description: "Cross-service reference to catalog product identifier"
             },
-            sku: {
+            productName: {
                 bsonType: "string",
-                description: "Унікальний артикул товару"
+                description: "Denormalized product name snapshot for read performance"
             },
-            title: {
-                bsonType: "string",
-                description: "Повна назва товару для пошуку"
-            },
-            product_type: {
-                enum: ["engine_oil", "brake_pads", "hand_tool", "battery", "filter", "spark_plug"],
-                description: "Тип номенклатури для поліморфної валідації"
-            },
-            brand_code: {
-                bsonType: "string",
-                description: "Код бренду (BOSCH, BREMBO, MOTUL тощо)"
-            },
-            specifications: {
-                bsonType: "object",
-                description: "Гнучкий вбудований документ характеристик (Embedding)"
-            },
-            certificates: {
-                bsonType: "array",
-                description: "Масив сертифікатів відповідності (Embedding)",
-                items: {
-                    bsonType: "object",
-                    required: ["standard", "certificate_number"],
-                    properties: {
-                        standard: { bsonType: "string" },
-                        certificate_number: { bsonType: "string" },
-                        issuer: { bsonType: "string" },
-                        valid_until: { bsonType: "string" }
-                    }
-                }
-            },
-            package_contents: {
-                bsonType: "array",
-                description: "Склад заводського комплекту (Embedding)",
-                items: {
-                    bsonType: "object",
-                    required: ["item", "quantity"],
-                    properties: {
-                        item: { bsonType: "string" },
-                        quantity: { bsonType: ["int", "long", "double"] }
-                    }
-                }
-            },
-            created_at: {
-                bsonType: ["date", "string"]
-            },
-            updated_at: {
-                bsonType: ["date", "string"]
-            }
-        }
-    }
-};
-
-// Створення або оновлення валідатора колекції product_specifications
-const existingCols = targetDb.getCollectionNames();
-
-if (!existingCols.includes("product_specifications")) {
-    targetDb.createCollection("product_specifications", {
-        validator: productSpecsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[SUCCESS] Колекцію product_specifications створено.");
-} else {
-    targetDb.runCommand({
-        collMod: "product_specifications",
-        validator: productSpecsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[INFO] Валідатор для product_specifications оновлено.");
-}
-
-// Індекси для product_specifications
-targetDb.product_specifications.createIndex({ catalog_product_id: 1 }, { unique: true, name: "uq_catalog_product_id" });
-targetDb.product_specifications.createIndex({ sku: 1 }, { unique: true, name: "uq_sku" });
-targetDb.product_specifications.createIndex({ product_type: 1 }, { name: "ix_product_type" });
-targetDb.product_specifications.createIndex(
-    { 
-        title: "text", 
-        "specifications.search_tags": "text", 
-        "specifications.oem_approvals": "text" 
-    }, 
-    { name: "text_search_title_tags", default_language: "russian" }
-);
-
-// ============================================================================
-// 2. Колекція: customer_reviews
-// Демонструє збір детальних відгуків покупців автотоварів.
-// Referencing: product_id (P2), customer_id (P1), order_id (P1).
-// Embedding: ratings (об'єкт критеріїв оцінки: якість, ціна, пакування),
-//            vehicle_context (автомобіль, на який встановлювалась деталь),
-//            photos (масив завантажених фотозвітів), helpful_votes.
-// ============================================================================
-
-const customerReviewsSchema = {
-    $jsonSchema: {
-        bsonType: "object",
-        required: ["product_id", "customer_id", "ratings", "headline", "comment"],
-        properties: {
-            product_id: {
+            rating: {
                 bsonType: ["int", "long", "double"],
-                description: "Посилання на ID товару (Referencing)"
-            },
-            customer_id: {
-                bsonType: ["int", "long", "double"],
-                description: "Посилання на CustomerId з P1 (Referencing)"
-            },
-            order_id: {
-                bsonType: ["int", "long", "double", "null"],
-                description: "Посилання на OrderId з P1 для Verified Purchase"
-            },
-            is_verified_purchase: {
-                bsonType: "bool"
-            },
-            author_name: {
-                bsonType: "string"
+                minimum: 1,
+                maximum: 5,
+                description: "Customer satisfaction rating score"
             },
             headline: {
                 bsonType: "string"
             },
-            comment: {
+            content: {
                 bsonType: "string"
             },
-            ratings: {
+            author: {
                 bsonType: "object",
-                required: ["overall"],
+                required: ["name"],
                 properties: {
-                    overall: { bsonType: ["int", "long", "double"], minimum: 1, maximum: 5 },
-                    quality: { bsonType: ["int", "long", "double"], minimum: 1, maximum: 5 },
-                    price_value: { bsonType: ["int", "long", "double"], minimum: 1, maximum: 5 },
-                    packaging: { bsonType: ["int", "long", "double"], minimum: 1, maximum: 5 }
+                    userId: { bsonType: ["string", "null"] },
+                    name: { bsonType: "string" },
+                    email: { bsonType: "string" },
+                    isVerifiedBuyer: { bsonType: "bool" }
                 }
             },
-            vehicle_context: {
-                bsonType: "object",
-                properties: {
-                    make: { bsonType: "string" },
-                    model: { bsonType: "string" },
-                    generation: { bsonType: "string" },
-                    year: { bsonType: ["int", "long", "double"] },
-                    engine: { bsonType: "string" },
-                    mileage_km: { bsonType: ["int", "long", "double"] }
+            comments: {
+                bsonType: "array",
+                description: "Embedded collection of replies and customer remarks",
+                items: {
+                    bsonType: "object",
+                    required: ["commentId", "authorName", "commentText", "createdAt"],
+                    properties: {
+                        commentId: { bsonType: "string" },
+                        authorName: { bsonType: "string" },
+                        commentText: { bsonType: "string" },
+                        createdAt: { bsonType: ["date", "string"] }
+                    }
                 }
             },
             photos: {
                 bsonType: "array",
-                items: {
-                    bsonType: "object",
-                    required: ["url"],
-                    properties: {
-                        url: { bsonType: "string" },
-                        uploaded_at: { bsonType: ["date", "string"] }
-                    }
-                }
+                items: { bsonType: "string" }
             },
-            helpful_votes: {
-                bsonType: "object",
-                properties: {
-                    upvotes: { bsonType: ["int", "long", "double"] },
-                    downvotes: { bsonType: ["int", "long", "double"] }
-                }
+            discussionId: {
+                bsonType: ["objectId", "null"],
+                description: "Referenced identifier to discussions collection"
             },
-            created_at: {
+            createdAt: {
                 bsonType: ["date", "string"]
             },
-            updated_at: {
+            updatedAt: {
                 bsonType: ["date", "string"]
             }
         }
     }
 };
 
-if (!existingCols.includes("customer_reviews")) {
-    targetDb.createCollection("customer_reviews", {
-        validator: customerReviewsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[SUCCESS] Колекцію customer_reviews створено.");
-} else {
-    targetDb.runCommand({
-        collMod: "customer_reviews",
-        validator: customerReviewsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[INFO] Валідатор для customer_reviews оновлено.");
-}
-
-// Індекси для customer_reviews
-targetDb.customer_reviews.createIndex({ product_id: 1, created_at: -1 }, { name: "ix_product_reviews_date" });
-targetDb.customer_reviews.createIndex({ customer_id: 1 }, { name: "ix_customer_id" });
-targetDb.customer_reviews.createIndex({ "ratings.overall": -1 }, { name: "ix_ratings_overall" });
-
-// ============================================================================
-// 3. Колекція: vehicle_fitments
-// Демонструє каталог автосумісності запчастин (Fitment / TecDoc model).
-// Referencing: product_id (P2), sku.
-// Embedding: oem_reference_numbers (масив оригінальних номерів OE),
-//            compatible_vehicles (вбудований масив модифікацій автомобілів).
-// ============================================================================
-
-const vehicleFitmentsSchema = {
+// Schema validator for discussions collection
+const discussionsSchema = {
     $jsonSchema: {
         bsonType: "object",
-        required: ["product_id", "sku", "compatible_vehicles"],
+        required: ["productId", "topic", "createdAt"],
         properties: {
-            product_id: {
-                bsonType: ["int", "long", "double"],
-                description: "Посилання на Product.Id (Referencing)"
+            productId: {
+                bsonType: ["int", "long", "double"]
             },
-            sku: {
+            reviewId: {
+                bsonType: ["objectId", "null"]
+            },
+            topic: {
                 bsonType: "string"
             },
-            oem_reference_numbers: {
-                bsonType: "array",
-                items: { bsonType: "string" },
-                description: "Масив оригінальних OE/OEM номерів запчастини"
+            status: {
+                enum: ["Open", "Closed", "Locked"]
             },
-            compatible_vehicles: {
+            messages: {
                 bsonType: "array",
-                description: "Вбудований масив підтримуваних автомобілів (Embedding)",
                 items: {
                     bsonType: "object",
-                    required: ["make", "model", "year_from"],
+                    required: ["author", "messageText", "sentAt"],
                     properties: {
-                        make: { bsonType: "string" },
-                        model: { bsonType: "string" },
-                        generation: { bsonType: "string" },
-                        year_from: { bsonType: ["int", "long", "double"] },
-                        year_to: { bsonType: ["int", "long", "double", "null"] },
-                        engine: { bsonType: "string" },
-                        engine_codes: {
-                            bsonType: "array",
-                            items: { bsonType: "string" }
-                        },
-                        power_hp: { bsonType: ["int", "long", "double"] },
-                        fuel_type: { bsonType: "string" },
-                        axle: { bsonType: "string" },
-                        notes: { bsonType: "string" }
+                        author: { bsonType: "string" },
+                        messageText: { bsonType: "string" },
+                        sentAt: { bsonType: ["date", "string"] }
                     }
                 }
             },
-            updated_at: {
+            createdAt: {
                 bsonType: ["date", "string"]
             }
         }
     }
 };
 
-if (!existingCols.includes("vehicle_fitments")) {
-    targetDb.createCollection("vehicle_fitments", {
-        validator: vehicleFitmentsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[SUCCESS] Колекцію vehicle_fitments створено.");
+// Schema validator for ratings summary collection
+const ratingsSchema = {
+    $jsonSchema: {
+        bsonType: "object",
+        required: ["productId", "averageRating", "totalRatings"],
+        properties: {
+            productId: {
+                bsonType: ["int", "long", "double"]
+            },
+            averageRating: {
+                bsonType: ["double", "int"]
+            },
+            totalRatings: {
+                bsonType: ["int", "long", "double"]
+            },
+            breakdown: {
+                bsonType: "object",
+                properties: {
+                    star1: { bsonType: ["int", "long", "double"] },
+                    star2: { bsonType: ["int", "long", "double"] },
+                    star3: { bsonType: ["int", "long", "double"] },
+                    star4: { bsonType: ["int", "long", "double"] },
+                    star5: { bsonType: ["int", "long", "double"] }
+                }
+            },
+            updatedAt: {
+                bsonType: ["date", "string"]
+            }
+        }
+    }
+};
+
+const collections = targetDb.getCollectionNames();
+
+// Initialize or update reviews collection
+if (!collections.includes("reviews")) {
+    targetDb.createCollection("reviews", { validator: reviewsSchema, validationLevel: "moderate" });
 } else {
-    targetDb.runCommand({
-        collMod: "vehicle_fitments",
-        validator: vehicleFitmentsSchema,
-        validationLevel: "moderate",
-        validationAction: "error"
-    });
-    print("[INFO] Валідатор для vehicle_fitments оновлено.");
+    targetDb.runCommand({ collMod: "reviews", validator: reviewsSchema, validationLevel: "moderate" });
 }
 
-// Індекси для vehicle_fitments
-targetDb.vehicle_fitments.createIndex({ product_id: 1 }, { unique: true, name: "uq_fitment_product_id" });
-targetDb.vehicle_fitments.createIndex({ sku: 1 }, { name: "ix_fitment_sku" });
-targetDb.vehicle_fitments.createIndex({ oem_reference_numbers: 1 }, { name: "ix_oem_numbers" });
-targetDb.vehicle_fitments.createIndex(
-    { 
-        "compatible_vehicles.make": 1, 
-        "compatible_vehicles.model": 1, 
-        "compatible_vehicles.year_from": 1 
-    }, 
-    { name: "ix_vehicle_search" }
-);
+// Initialize or update discussions collection
+if (!collections.includes("discussions")) {
+    targetDb.createCollection("discussions", { validator: discussionsSchema, validationLevel: "moderate" });
+} else {
+    targetDb.runCommand({ collMod: "discussions", validator: discussionsSchema, validationLevel: "moderate" });
+}
 
-print("[SUCCESS] Ініціалізація структури MongoDB завершена успішно.");
+// Initialize or update ratings collection
+if (!collections.includes("ratings")) {
+    targetDb.createCollection("ratings", { validator: ratingsSchema, validationLevel: "moderate" });
+} else {
+    targetDb.runCommand({ collMod: "ratings", validator: ratingsSchema, validationLevel: "moderate" });
+}
+
+// Optimization indexes
+targetDb.reviews.createIndex({ productId: 1, createdAt: -1 }, { name: "ix_reviews_product_created" });
+targetDb.reviews.createIndex({ rating: 1 }, { name: "ix_reviews_rating" });
+targetDb.reviews.createIndex({ discussionId: 1 }, { name: "ix_reviews_discussion", sparse: true });
+
+targetDb.discussions.createIndex({ productId: 1 }, { name: "ix_discussions_product" });
+targetDb.discussions.createIndex({ reviewId: 1 }, { name: "ix_discussions_review", sparse: true });
+
+targetDb.ratings.createIndex({ productId: 1 }, { unique: true, name: "uq_ratings_product" });

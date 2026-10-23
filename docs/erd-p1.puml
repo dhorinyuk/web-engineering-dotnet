@@ -1,132 +1,99 @@
 @startuml
-' ERD for Project 1: Orders & Fulfillment Context (SQL Server)
 !theme plain
 skinparam linetype ortho
-skinparam roundcorner 5
+skinparam roundcorner 4
 
 entity "Customers" as customers {
-    * CustomerId : INT <<generated, PK>>
+    * CustomerId : INT <<PK, identity>>
     --
-    * ExternalUserId : UNIQUEIDENTIFIER <<UQ>>
-    * FirstName : NVARCHAR(50)
-    * LastName : NVARCHAR(50)
-    * Email : NVARCHAR(100)
-    * Phone : NVARCHAR(20)
+    * ExternalId : UNIQUEIDENTIFIER <<UQ>>
+    * FullName : NVARCHAR(100)
+    * Email : NVARCHAR(255) <<UQ>>
+    * Phone : NVARCHAR(30)
     * CreatedAt : DATETIME2
+    * CreatedBy : NVARCHAR(100)
     UpdatedAt : DATETIME2
+    UpdatedBy : NVARCHAR(100)
     * IsDeleted : BIT
-    * RowVersion : ROWVERSION
 }
 
 entity "Orders" as orders {
-    * OrderId : INT <<generated, PK>>
+    * OrderId : INT <<PK, identity>>
     --
-    * OrderNumber : NVARCHAR(30) <<UQ>>
+    * OrderNumber : NVARCHAR(32) <<UQ>>
     * CustomerId : INT <<FK>>
-    * OrderStatus : NVARCHAR(30)
-    * SubTotal : DECIMAL(18,2)
-    * ShippingFee : DECIMAL(18,2)
-    * DiscountAmount : DECIMAL(18,2)
+    * Status : NVARCHAR(32)
     * TotalAmount : DECIMAL(18,2)
-    * OrderDate : DATETIME2
-    Notes : NVARCHAR(500)
-    * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
-    * IsDeleted : BIT
     * RowVersion : ROWVERSION
+    * CreatedAt : DATETIME2
+    * CreatedBy : NVARCHAR(100)
+    UpdatedAt : DATETIME2
+    UpdatedBy : NVARCHAR(100)
+    * IsDeleted : BIT
+}
+
+entity "OrderDetails" as order_details {
+    * OrderId : INT <<PK, FK>>
+    --
+    * RecipientName : NVARCHAR(100)
+    * RecipientPhone : NVARCHAR(30)
+    * ShippingAddress : NVARCHAR(255)
+    * City : NVARCHAR(100)
+    PostalCode : NVARCHAR(20)
+    * ShippingMethod : NVARCHAR(50)
+    TrackingNumber : NVARCHAR(100)
+    DeliveredAt : DATETIME2
+    * CreatedAt : DATETIME2
+    * CreatedBy : NVARCHAR(100)
+    UpdatedAt : DATETIME2
+    UpdatedBy : NVARCHAR(100)
+    * IsDeleted : BIT
+}
+
+entity "Products" as products {
+    * ProductId : INT <<PK>>
+    --
+    * Sku : NVARCHAR(64) <<UQ>>
+    * Name : NVARCHAR(200)
+    * Price : DECIMAL(18,2)
+    * IsAvailable : BIT
+    * CreatedAt : DATETIME2
+    * CreatedBy : NVARCHAR(100)
+    UpdatedAt : DATETIME2
+    UpdatedBy : NVARCHAR(100)
+    * IsDeleted : BIT
 }
 
 entity "OrderItems" as order_items {
-    * OrderItemId : INT <<generated, PK>>
+    * OrderId : INT <<PK, FK>>
+    * ProductId : INT <<PK, FK>>
     --
-    * OrderId : INT <<FK>>
-    * ExternalProductId : INT
-    * ProductSKU : NVARCHAR(50)
     * ProductName : NVARCHAR(200)
     * UnitPrice : DECIMAL(18,2)
-    * Quantity : INT
-    * TotalPrice : DECIMAL(18,2) <<computed>>
+    * Units : INT
+    * SubTotal : DECIMAL(18,2) <<computed>>
     * CreatedAt : DATETIME2
+    * CreatedBy : NVARCHAR(100)
     UpdatedAt : DATETIME2
-    * IsDeleted : BIT
-}
-
-entity "OrderDeliveries" as order_deliveries {
-    * DeliveryId : INT <<generated, PK>>
-    --
-    * OrderId : INT <<FK, UQ>>
-    * Carrier : NVARCHAR(50)
-    TrackingNumber : NVARCHAR(100)
-    * RecipientFullName : NVARCHAR(100)
-    * RecipientPhone : NVARCHAR(20)
-    * City : NVARCHAR(100)
-    PostalCode : NVARCHAR(20)
-    * DeliveryAddress : NVARCHAR(250)
-    * DeliveryStatus : NVARCHAR(30)
-    DispatchedAt : DATETIME2
-    DeliveredAt : DATETIME2
-    * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
-    * IsDeleted : BIT
-    * RowVersion : ROWVERSION
-}
-
-entity "PaymentTransactions" as payment_transactions {
-    * PaymentId : INT <<generated, PK>>
-    --
-    * OrderId : INT <<FK>>
-    * TransactionReference : NVARCHAR(100) <<UQ>>
-    * PaymentMethod : NVARCHAR(50)
-    * Amount : DECIMAL(18,2)
-    * Currency : NVARCHAR(3)
-    * Status : NVARCHAR(30)
-    * PaymentDate : DATETIME2
-    ErrorMessage : NVARCHAR(500)
-    * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
+    UpdatedBy : NVARCHAR(100)
     * IsDeleted : BIT
 }
 
 entity "OrderStatusHistory" as order_status_history {
-    * HistoryId : INT <<generated, PK>>
+    * HistoryId : INT <<PK, identity>>
     --
     * OrderId : INT <<FK>>
-    OldStatus : NVARCHAR(30)
-    * NewStatus : NVARCHAR(30)
-    * ChangedAt : DATETIME2
-    * ChangedBy : NVARCHAR(100)
+    FromStatus : NVARCHAR(32)
+    * ToStatus : NVARCHAR(32)
     Reason : NVARCHAR(255)
-}
-
-entity "Promotions" as promotions {
-    * PromotionId : INT <<generated, PK>>
-    --
-    * PromoCode : NVARCHAR(50) <<UQ>>
-    * DiscountPercent : DECIMAL(5,2)
-    MaxDiscountAmount : DECIMAL(18,2)
-    * StartDate : DATETIME2
-    * EndDate : DATETIME2
-    * IsActive : BIT
     * CreatedAt : DATETIME2
-    UpdatedAt : DATETIME2
-    * IsDeleted : BIT
+    * CreatedBy : NVARCHAR(100)
 }
 
-entity "OrderPromotions" as order_promotions {
-    * OrderId : INT <<FK, PK>>
-    * PromotionId : INT <<FK, PK>>
-    --
-    * AppliedDiscount : DECIMAL(18,2)
-    * AppliedAt : DATETIME2
-}
-
-' Relationships
-customers ||--o{ orders : "1:N (places)"
-orders ||--|{ order_items : "1:N (contains)"
-orders ||--|| order_deliveries : "1:1 (delivery details)"
-orders ||--o{ payment_transactions : "1:N (processed payments)"
-orders ||--o{ order_status_history : "1:N (status audit trail)"
-orders ||--o{ order_promotions : "M:N via OrderPromotions"
-promotions ||--o{ order_promotions : "M:N via OrderPromotions"
+customers ||--o{ orders : "places"
+orders ||--|| order_details : "has delivery"
+orders ||--|{ order_items : "contains"
+products ||--o{ order_items : "referenced by"
+orders ||--o{ order_status_history : "tracks"
 
 @enduml
