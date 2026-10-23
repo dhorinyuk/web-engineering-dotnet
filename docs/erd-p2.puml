@@ -11,6 +11,7 @@ entity "Brands" as brands {
     * Country : NVARCHAR(60)
     * IsActive : BIT
     * CreatedAt : DATETIME2
+    UpdatedAt : DATETIME2
 }
 
 entity "Categories" as categories {
@@ -22,6 +23,7 @@ entity "Categories" as categories {
     * DisplayOrder : INT
     * IsActive : BIT
     * CreatedAt : DATETIME2
+    UpdatedAt : DATETIME2
 }
 
 entity "Products" as products {
@@ -29,10 +31,12 @@ entity "Products" as products {
     --
     * BrandId : INT <<FK>>
     * Sku : NVARCHAR(64) <<UQ>>
+    * Slug : NVARCHAR(220) <<UQ>>
     * Name : NVARCHAR(200)
     * Price : DECIMAL(18,2)
     * CostPrice : DECIMAL(18,2)
     * WeightKg : DECIMAL(8,3)
+    * Stock : INT
     * IsAvailable : BIT
     * RowVersion : ROWVERSION
     * CreatedAt : DATETIME2
@@ -47,6 +51,8 @@ entity "ProductDetails" as product_details {
     * CountryOfOrigin : NVARCHAR(60)
     Dimensions : NVARCHAR(100)
     InstallationGuideUrl : NVARCHAR(255)
+    * CreatedAt : DATETIME2
+    UpdatedAt : DATETIME2
 }
 
 entity "ProductCategories" as product_categories {
@@ -66,11 +72,11 @@ entity "ProductReviewsSummary" as reviews_summary {
     * UpdatedAt : DATETIME2
 }
 
-brands ||--o{ products : "manufactures"
-categories ||--o{ categories : "subcategories"
-products ||--|{ product_categories : "categorized in"
-categories ||--|{ product_categories : "contains"
-products ||--|| product_details : "technical specifications"
-products ||--|| reviews_summary : "aggregated reviews cache"
+brands ||--o{ products : "manufactures (1:N)"
+categories ||--o{ categories : "subcategories (1:N self-ref)"
+products ||--|{ product_categories : "categorized in (1:N)"
+categories ||--|{ product_categories : "contains (1:N)"
+products ||--|| product_details : "technical specifications (1:1)"
+products ||--|| reviews_summary : "aggregated reviews cache (1:1)"
 
 @enduml

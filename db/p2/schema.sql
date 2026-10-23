@@ -8,7 +8,7 @@ IF OBJECT_ID(N'dbo.Categories', N'U') IS NOT NULL DROP TABLE dbo.Categories;
 IF OBJECT_ID(N'dbo.Brands', N'U') IS NOT NULL DROP TABLE dbo.Brands;
 GO
 
--- Manufacturer brand catalog entity
+-- 1. Manufacturer brand catalog entity
 CREATE TABLE dbo.Brands (
     Id          INT IDENTITY(1,1) NOT NULL,
     Name        NVARCHAR(100) NOT NULL,
@@ -16,6 +16,7 @@ CREATE TABLE dbo.Brands (
     Country     NVARCHAR(60) NOT NULL,
     IsActive    BIT NOT NULL CONSTRAINT DF_Brands_IsActive DEFAULT (1),
     CreatedAt   DATETIME2(7) NOT NULL CONSTRAINT DF_Brands_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt   DATETIME2(7) NULL,
 
     CONSTRAINT PK_Brands PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Brands_Name UNIQUE NONCLUSTERED (Name),
@@ -23,7 +24,7 @@ CREATE TABLE dbo.Brands (
 );
 GO
 
--- Hierarchical category tree with self-referencing relationship
+-- 2. Hierarchical category tree with self-referencing relationship
 CREATE TABLE dbo.Categories (
     Id                  INT IDENTITY(1,1) NOT NULL,
     ParentCategoryId    INT NULL,
@@ -32,6 +33,7 @@ CREATE TABLE dbo.Categories (
     DisplayOrder        INT NOT NULL CONSTRAINT DF_Categories_DisplayOrder DEFAULT (0),
     IsActive            BIT NOT NULL CONSTRAINT DF_Categories_IsActive DEFAULT (1),
     CreatedAt           DATETIME2(7) NOT NULL CONSTRAINT DF_Categories_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt           DATETIME2(7) NULL,
 
     CONSTRAINT PK_Categories PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Categories_Slug UNIQUE NONCLUSTERED (Slug),
@@ -39,15 +41,17 @@ CREATE TABLE dbo.Categories (
 );
 GO
 
--- Product entity mapped to EF Core aggregate root with concurrency token
+-- 3. Product entity mapped to EF Core aggregate root with concurrency token
 CREATE TABLE dbo.Products (
     Id          INT IDENTITY(1,1) NOT NULL,
     BrandId     INT NOT NULL,
     Sku         NVARCHAR(64) NOT NULL,
+    Slug        NVARCHAR(220) NOT NULL,
     Name        NVARCHAR(200) NOT NULL,
     Price       DECIMAL(18,2) NOT NULL,
     CostPrice   DECIMAL(18,2) NOT NULL,
     WeightKg    DECIMAL(8,3) NOT NULL,
+    Stock       INT NOT NULL CONSTRAINT DF_Products_Stock DEFAULT (0),
     IsAvailable BIT NOT NULL CONSTRAINT DF_Products_IsAvailable DEFAULT (1),
     RowVersion  ROWVERSION NOT NULL,
     CreatedAt   DATETIME2(7) NOT NULL CONSTRAINT DF_Products_CreatedAt DEFAULT (SYSUTCDATETIME()),
@@ -55,14 +59,16 @@ CREATE TABLE dbo.Products (
 
     CONSTRAINT PK_Products PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Products_Sku UNIQUE NONCLUSTERED (Sku),
+    CONSTRAINT UQ_Products_Slug UNIQUE NONCLUSTERED (Slug),
     CONSTRAINT FK_Products_Brands FOREIGN KEY (BrandId) REFERENCES dbo.Brands (Id),
-    CONSTRAINT CK_Products_Price CHECK (Price >= 0.00),
+    CONSTRAINT CK_Products_Price CHECK (Price > 0.00),
     CONSTRAINT CK_Products_CostPrice CHECK (CostPrice >= 0.00),
-    CONSTRAINT CK_Products_WeightKg CHECK (WeightKg >= 0.000)
+    CONSTRAINT CK_Products_WeightKg CHECK (WeightKg >= 0.000),
+    CONSTRAINT CK_Products_Stock CHECK (Stock >= 0)
 );
 GO
 
--- 1:1 technical specification details where PK is FK
+-- 4. 1:1 technical specification details where PK is FK
 CREATE TABLE dbo.ProductDetails (
     ProductId               INT NOT NULL,
     TechnicalDescription    NVARCHAR(MAX) NOT NULL,
@@ -70,6 +76,8 @@ CREATE TABLE dbo.ProductDetails (
     CountryOfOrigin         NVARCHAR(60) NOT NULL,
     Dimensions              NVARCHAR(100) NULL,
     InstallationGuideUrl    NVARCHAR(255) NULL,
+    CreatedAt               DATETIME2(7) NOT NULL CONSTRAINT DF_ProductDetails_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt               DATETIME2(7) NULL,
 
     CONSTRAINT PK_ProductDetails PRIMARY KEY CLUSTERED (ProductId),
     CONSTRAINT FK_ProductDetails_Products FOREIGN KEY (ProductId) REFERENCES dbo.Products (Id) ON DELETE CASCADE,
@@ -77,7 +85,7 @@ CREATE TABLE dbo.ProductDetails (
 );
 GO
 
--- M:N join entity with payload attributes
+-- 5. M:N join entity with payload attributes
 CREATE TABLE dbo.ProductCategories (
     ProductId   INT NOT NULL,
     CategoryId  INT NOT NULL,
@@ -90,7 +98,7 @@ CREATE TABLE dbo.ProductCategories (
 );
 GO
 
--- Denormalized review analytics projection updated via integration events
+-- Read model projection: denormalized review analytics projection updated via integration events
 CREATE TABLE dbo.ProductReviewsSummary (
     ProductId           INT NOT NULL,
     AverageRating       DECIMAL(3,2) NOT NULL CONSTRAINT DF_ReviewsSummary_AverageRating DEFAULT (0.00),

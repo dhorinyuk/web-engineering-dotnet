@@ -75,8 +75,8 @@ DECLARE @BoschId INT = (SELECT Id FROM dbo.Brands WHERE Code = N'BOSCH');
 IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 1)
 BEGIN
     SET IDENTITY_INSERT dbo.Products ON;
-    INSERT INTO dbo.Products (Id, BrandId, Sku, Name, Price, CostPrice, WeightKg, IsAvailable)
-    VALUES (1, @MotulId, N'MOT-8100-5W40-5L', N'Моторна олива Motul 8100 X-cess Gen2 5W-40 5л', 1850.00, 1350.00, 4.650, 1);
+    INSERT INTO dbo.Products (Id, BrandId, Sku, Slug, Name, Price, CostPrice, WeightKg, Stock, IsAvailable)
+    VALUES (1, @MotulId, N'MOT-8100-5W40-5L', N'motul-8100-xcess-gen2-5w40-5l', N'Моторна олива Motul 8100 X-cess Gen2 5W-40 5л', 1850.00, 1350.00, 4.650, 45, 1);
     SET IDENTITY_INSERT dbo.Products OFF;
 
     INSERT INTO dbo.ProductDetails (ProductId, TechnicalDescription, WarrantyMonths, CountryOfOrigin, Dimensions, InstallationGuideUrl)
@@ -95,8 +95,8 @@ END;
 IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 2)
 BEGIN
     SET IDENTITY_INSERT dbo.Products ON;
-    INSERT INTO dbo.Products (Id, BrandId, Sku, Name, Price, CostPrice, WeightKg, IsAvailable)
-    VALUES (2, @BremboId, N'BRM-P85020', N'Комплект передніх гальмівних колодок Brembo P 85 020', 2800.00, 2050.00, 1.820, 1);
+    INSERT INTO dbo.Products (Id, BrandId, Sku, Slug, Name, Price, CostPrice, WeightKg, Stock, IsAvailable)
+    VALUES (2, @BremboId, N'BRM-P85020', N'brembo-p-85-020-brake-pads', N'Комплект передніх гальмівних колодок Brembo P 85 020', 2800.00, 2050.00, 1.820, 20, 1);
     SET IDENTITY_INSERT dbo.Products OFF;
 
     INSERT INTO dbo.ProductDetails (ProductId, TechnicalDescription, WarrantyMonths, CountryOfOrigin, Dimensions, InstallationGuideUrl)
@@ -115,8 +115,8 @@ END;
 IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 3)
 BEGIN
     SET IDENTITY_INSERT dbo.Products ON;
-    INSERT INTO dbo.Products (Id, BrandId, Sku, Name, Price, CostPrice, WeightKg, IsAvailable)
-    VALUES (3, @ToptulId, N'TOP-ANAM1621', N'Ключ динамометричний Toptul 1/2" 40-210 Нм (ANAM1621)', 3750.00, 2600.00, 2.100, 1);
+    INSERT INTO dbo.Products (Id, BrandId, Sku, Slug, Name, Price, CostPrice, WeightKg, Stock, IsAvailable)
+    VALUES (3, @ToptulId, N'TOP-ANAM1621', N'toptul-anam1621-torque-wrench', N'Ключ динамометричний Toptul 1/2" 40-210 Нм (ANAM1621)', 3750.00, 2600.00, 2.100, 12, 1);
     SET IDENTITY_INSERT dbo.Products OFF;
 
     INSERT INTO dbo.ProductDetails (ProductId, TechnicalDescription, WarrantyMonths, CountryOfOrigin, Dimensions, InstallationGuideUrl)
@@ -133,8 +133,8 @@ END;
 IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 4)
 BEGIN
     SET IDENTITY_INSERT dbo.Products ON;
-    INSERT INTO dbo.Products (Id, BrandId, Sku, Name, Price, CostPrice, WeightKg, IsAvailable)
-    VALUES (4, @BoschId, N'BOS-S4-60AH', N'Акумулятор автомобільний Bosch S4 005 Silver 60Ah 540A', 4300.00, 3200.00, 14.800, 1);
+    INSERT INTO dbo.Products (Id, BrandId, Sku, Slug, Name, Price, CostPrice, WeightKg, Stock, IsAvailable)
+    VALUES (4, @BoschId, N'BOS-S4-60AH', N'bosch-s4-005-silver-60ah-battery', N'Акумулятор автомобільний Bosch S4 005 Silver 60Ah 540A', 4300.00, 3200.00, 14.800, 8, 1);
     SET IDENTITY_INSERT dbo.Products OFF;
 
     INSERT INTO dbo.ProductDetails (ProductId, TechnicalDescription, WarrantyMonths, CountryOfOrigin, Dimensions, InstallationGuideUrl)

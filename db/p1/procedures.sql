@@ -8,93 +8,48 @@ IF OBJECT_ID(N'dbo.usp_SoftDeleteOrder', N'P') IS NOT NULL DROP PROCEDURE dbo.us
 GO
 
 -- Transactional state transition procedure with exclusive row locking
-CREATE PROCEDURE dbo.usp_ChangeOrderStatus
-    @OrderId    INT,
-    @NewStatus  NVARCHAR(32),
-    @UpdatedBy  NVARCHAR(100) = N'SYSTEM',
-    @Reason     NVARCHAR(255) = NULL
+CREATE OR ALTER PROCEDURE dbo.usp_ChangeOrderStatus
+    @OrderId BIGINT,
+    @NewStatus NVARCHAR(30),
+    @Comment NVARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
 
-    DECLARE @CurrentStatus NVARCHAR(32);
-    DECLARE @IsDeleted BIT;
-    DECLARE @ErrorMessage NVARCHAR(500);
+    DECLARE @Status NVARCHAR(30) = 
+        (SELECT Status FROM dbo.Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = @OrderId);
 
-    BEGIN TRY
-        BEGIN TRANSACTION;
+    IF @Status IS NULL
+        THROW 50001, 'Order not found', 1;
 
-        -- Acquire update lock on target order row to prevent concurrent transition anomalies
-        SELECT 
-            @CurrentStatus = Status,
-            @IsDeleted = IsDeleted
-        FROM dbo.Orders WITH (UPDLOCK, ROWLOCK)
-        WHERE OrderId = @OrderId;
+    IF @NewStatus = 'StockConfirmed' AND @Status NOT IN ('Submitted', 'AwaitingValidation')
+        THROW 50002, 'Stock can be confirmed only for a new order', 1;
 
-        IF @CurrentStatus IS NULL
-        BEGIN
-            SET @ErrorMessage = FORMATMESSAGE(N'Order %d does not exist.', @OrderId);
-            THROW 50001, @ErrorMessage, 1;
-        END
+    IF @NewStatus = 'Paid' AND @Status <> 'StockConfirmed'
+        THROW 50002, 'Only stock-confirmed orders can be paid', 1;
 
-        IF @IsDeleted = 1
-        BEGIN
-            SET @ErrorMessage = FORMATMESSAGE(N'Order %d is deleted. State transitions are disallowed.', @OrderId);
-            THROW 50003, @ErrorMessage, 1;
-        END
+    IF @NewStatus = 'Shipped' AND @Status <> 'Paid'
+        THROW 50002, 'Only paid orders can be shipped', 1;
 
-        IF @CurrentStatus = @NewStatus
-        BEGIN
-            COMMIT TRANSACTION;
-            RETURN 0;
-        END
+    IF @NewStatus = 'Cancelled' AND @Status IN ('Paid', 'Shipped')
+        THROW 50002, 'Cannot cancel paid or shipped order', 1;
 
-        -- Validate allowed state machine transitions
-        DECLARE @IsValid BIT = 0;
+    UPDATE dbo.Orders
+    SET Status = @NewStatus, UpdatedAt = SYSUTCDATETIME()
+    WHERE Id = @OrderId;
 
-        IF @CurrentStatus = N'Submitted' AND @NewStatus IN (N'AwaitingValidation', N'Cancelled')
-            SET @IsValid = 1;
-        ELSE IF @CurrentStatus = N'AwaitingValidation' AND @NewStatus IN (N'StockConfirmed', N'Cancelled')
-            SET @IsValid = 1;
-        ELSE IF @CurrentStatus = N'StockConfirmed' AND @NewStatus IN (N'Paid', N'Cancelled')
-            SET @IsValid = 1;
-        ELSE IF @CurrentStatus = N'Paid' AND @NewStatus = N'Shipped'
-            SET @IsValid = 1;
+    INSERT INTO dbo.OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedAt, Comment)
+    VALUES (@OrderId, @Status, @NewStatus, SYSUTCDATETIME(), @Comment);
 
-        IF @IsValid = 0
-        BEGIN
-            SET @ErrorMessage = FORMATMESSAGE(
-                N'Invalid status transition for order %d: cannot transition from ''%s'' to ''%s''.',
-                @OrderId, @CurrentStatus, @NewStatus
-            );
-            THROW 50002, @ErrorMessage, 1;
-        END
-
-        UPDATE dbo.Orders
-        SET 
-            Status = @NewStatus,
-            UpdatedAt = SYSUTCDATETIME(),
-            UpdatedBy = @UpdatedBy
-        WHERE OrderId = @OrderId;
-
-        INSERT INTO dbo.OrderStatusHistory (OrderId, FromStatus, ToStatus, Reason, CreatedAt, CreatedBy)
-        VALUES (@OrderId, @CurrentStatus, @NewStatus, @Reason, SYSUTCDATETIME(), @UpdatedBy);
-
-        COMMIT TRANSACTION;
-        RETURN 0;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
+    COMMIT TRANSACTION;
 END;
 GO
 
 -- Transactional creation of order aggregate with 1:1 delivery details
-CREATE PROCEDURE dbo.usp_CreateOrder
-    @CustomerId     INT,
+CREATE OR ALTER PROCEDURE dbo.usp_CreateOrder
+    @CustomerId     BIGINT,
     @OrderNumber    NVARCHAR(32),
     @RecipientName  NVARCHAR(100),
     @RecipientPhone NVARCHAR(30),
@@ -103,7 +58,7 @@ CREATE PROCEDURE dbo.usp_CreateOrder
     @PostalCode     NVARCHAR(20),
     @ShippingMethod NVARCHAR(50),
     @CreatedBy      NVARCHAR(100) = N'SYSTEM',
-    @NewOrderId     INT OUTPUT
+    @NewOrderId     BIGINT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -112,7 +67,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE CustomerId = @CustomerId AND IsDeleted = 0)
+        IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE Id = @CustomerId AND IsDeleted = 0)
         BEGIN
             THROW 50010, N'Customer does not exist or has been soft-deleted.', 1;
         END
@@ -131,8 +86,8 @@ BEGIN
             @City, @PostalCode, @ShippingMethod, SYSUTCDATETIME(), @CreatedBy
         );
 
-        INSERT INTO dbo.OrderStatusHistory (OrderId, FromStatus, ToStatus, Reason, CreatedAt, CreatedBy)
-        VALUES (@NewOrderId, NULL, N'Submitted', N'Order placed by customer', SYSUTCDATETIME(), @CreatedBy);
+        INSERT INTO dbo.OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedAt, Comment)
+        VALUES (@NewOrderId, NULL, N'Submitted', SYSUTCDATETIME(), N'Order placed by customer');
 
         COMMIT TRANSACTION;
         RETURN 0;
@@ -146,9 +101,9 @@ END;
 GO
 
 -- Add order line item with price snapshotting and aggregate total recalculation
-CREATE PROCEDURE dbo.usp_AddOrderItem
-    @OrderId    INT,
-    @ProductId  INT,
+CREATE OR ALTER PROCEDURE dbo.usp_AddOrderItem
+    @OrderId    BIGINT,
+    @ProductId  BIGINT,
     @Units      INT,
     @CreatedBy  NVARCHAR(100) = N'SYSTEM'
 AS
@@ -166,7 +121,7 @@ BEGIN
 
         SELECT @OrderStatus = Status
         FROM dbo.Orders WITH (UPDLOCK, ROWLOCK)
-        WHERE OrderId = @OrderId AND IsDeleted = 0;
+        WHERE Id = @OrderId AND IsDeleted = 0;
 
         IF @OrderStatus IS NULL
         BEGIN
@@ -184,7 +139,7 @@ BEGIN
             @UnitPrice = Price,
             @IsAvailable = IsAvailable
         FROM dbo.Products
-        WHERE ProductId = @ProductId AND IsDeleted = 0;
+        WHERE Id = @ProductId AND IsDeleted = 0;
 
         IF @ProductName IS NULL
         BEGIN
@@ -218,7 +173,7 @@ BEGIN
             TotalAmount = (SELECT ISNULL(SUM(SubTotal), 0.00) FROM dbo.OrderItems WHERE OrderId = @OrderId AND IsDeleted = 0),
             UpdatedAt = SYSUTCDATETIME(),
             UpdatedBy = @CreatedBy
-        WHERE OrderId = @OrderId;
+        WHERE Id = @OrderId;
 
         COMMIT TRANSACTION;
         RETURN 0;
@@ -232,15 +187,15 @@ END;
 GO
 
 -- Query order aggregate with 1:1 delivery details and line items
-CREATE PROCEDURE dbo.usp_GetOrderById
-    @OrderId INT
+CREATE OR ALTER PROCEDURE dbo.usp_GetOrderById
+    @OrderId BIGINT
 AS
 BEGIN
     SET NOCOUNT ON;
 
     -- Order header and 1:1 delivery details
     SELECT 
-        o.OrderId,
+        o.Id AS OrderId,
         o.OrderNumber,
         o.CustomerId,
         c.FullName AS CustomerName,
@@ -258,9 +213,9 @@ BEGIN
         d.TrackingNumber,
         d.DeliveredAt
     FROM dbo.Orders o
-    INNER JOIN dbo.Customers c ON o.CustomerId = c.CustomerId
-    LEFT JOIN dbo.OrderDetails d ON o.OrderId = d.OrderId
-    WHERE o.OrderId = @OrderId AND o.IsDeleted = 0;
+    INNER JOIN dbo.Customers c ON o.CustomerId = c.Id
+    LEFT JOIN dbo.OrderDetails d ON o.Id = d.OrderId
+    WHERE o.Id = @OrderId AND o.IsDeleted = 0;
 
     -- Order line items
     SELECT 
@@ -276,8 +231,8 @@ END;
 GO
 
 -- Soft-delete order and associated child entities
-CREATE PROCEDURE dbo.usp_SoftDeleteOrder
-    @OrderId    INT,
+CREATE OR ALTER PROCEDURE dbo.usp_SoftDeleteOrder
+    @OrderId    BIGINT,
     @UpdatedBy  NVARCHAR(100) = N'SYSTEM'
 AS
 BEGIN
@@ -291,7 +246,7 @@ BEGIN
 
         SELECT @CurrentStatus = Status
         FROM dbo.Orders WITH (UPDLOCK, ROWLOCK)
-        WHERE OrderId = @OrderId AND IsDeleted = 0;
+        WHERE Id = @OrderId AND IsDeleted = 0;
 
         IF @CurrentStatus IS NULL
         BEGIN
@@ -309,7 +264,7 @@ BEGIN
             Status = N'Cancelled',
             UpdatedAt = SYSUTCDATETIME(),
             UpdatedBy = @UpdatedBy
-        WHERE OrderId = @OrderId;
+        WHERE Id = @OrderId;
 
         UPDATE dbo.OrderDetails
         SET 
@@ -325,8 +280,8 @@ BEGIN
             UpdatedBy = @UpdatedBy
         WHERE OrderId = @OrderId;
 
-        INSERT INTO dbo.OrderStatusHistory (OrderId, FromStatus, ToStatus, Reason, CreatedAt, CreatedBy)
-        VALUES (@OrderId, @CurrentStatus, N'Cancelled', N'Order soft deleted', SYSUTCDATETIME(), @UpdatedBy);
+        INSERT INTO dbo.OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedAt, Comment)
+        VALUES (@OrderId, @CurrentStatus, N'Cancelled', SYSUTCDATETIME(), @UpdatedBy);
 
         COMMIT TRANSACTION;
         RETURN 0;

@@ -4,7 +4,7 @@ skinparam linetype ortho
 skinparam roundcorner 4
 
 entity "Customers" as customers {
-    * CustomerId : INT <<PK, identity>>
+    * Id : BIGINT <<PK, identity>>
     --
     * ExternalId : UNIQUEIDENTIFIER <<UQ>>
     * FullName : NVARCHAR(100)
@@ -15,25 +15,26 @@ entity "Customers" as customers {
     UpdatedAt : DATETIME2
     UpdatedBy : NVARCHAR(100)
     * IsDeleted : BIT
+    * RowVersion : ROWVERSION
 }
 
 entity "Orders" as orders {
-    * OrderId : INT <<PK, identity>>
+    * Id : BIGINT <<PK, identity>>
     --
     * OrderNumber : NVARCHAR(32) <<UQ>>
-    * CustomerId : INT <<FK>>
+    * CustomerId : BIGINT <<FK>>
     * Status : NVARCHAR(32)
     * TotalAmount : DECIMAL(18,2)
-    * RowVersion : ROWVERSION
     * CreatedAt : DATETIME2
     * CreatedBy : NVARCHAR(100)
     UpdatedAt : DATETIME2
     UpdatedBy : NVARCHAR(100)
     * IsDeleted : BIT
+    * RowVersion : ROWVERSION
 }
 
 entity "OrderDetails" as order_details {
-    * OrderId : INT <<PK, FK>>
+    * OrderId : BIGINT <<PK, FK>>
     --
     * RecipientName : NVARCHAR(100)
     * RecipientPhone : NVARCHAR(30)
@@ -51,7 +52,7 @@ entity "OrderDetails" as order_details {
 }
 
 entity "Products" as products {
-    * ProductId : INT <<PK>>
+    * Id : BIGINT <<PK>>
     --
     * Sku : NVARCHAR(64) <<UQ>>
     * Name : NVARCHAR(200)
@@ -65,8 +66,8 @@ entity "Products" as products {
 }
 
 entity "OrderItems" as order_items {
-    * OrderId : INT <<PK, FK>>
-    * ProductId : INT <<PK, FK>>
+    * OrderId : BIGINT <<PK, FK>>
+    * ProductId : BIGINT <<PK, FK>>
     --
     * ProductName : NVARCHAR(200)
     * UnitPrice : DECIMAL(18,2)
@@ -80,20 +81,19 @@ entity "OrderItems" as order_items {
 }
 
 entity "OrderStatusHistory" as order_status_history {
-    * HistoryId : INT <<PK, identity>>
+    * HistoryId : BIGINT <<PK, identity>>
     --
-    * OrderId : INT <<FK>>
-    FromStatus : NVARCHAR(32)
-    * ToStatus : NVARCHAR(32)
-    Reason : NVARCHAR(255)
-    * CreatedAt : DATETIME2
-    * CreatedBy : NVARCHAR(100)
+    * OrderId : BIGINT <<FK>>
+    OldStatus : NVARCHAR(30)
+    * NewStatus : NVARCHAR(30)
+    * ChangedAt : DATETIME2
+    Comment : NVARCHAR(500)
 }
 
-customers ||--o{ orders : "places"
-orders ||--|| order_details : "has delivery"
-orders ||--|{ order_items : "contains"
-products ||--o{ order_items : "referenced by"
-orders ||--o{ order_status_history : "tracks"
+customers ||--o{ orders : "places (1:N)"
+orders ||--|| order_details : "has delivery details (1:1)"
+orders ||--|{ order_items : "contains (1:N)"
+products ||--o{ order_items : "referenced by (1:N)"
+orders ||--o{ order_status_history : "tracks state history (1:N)"
 
 @enduml

@@ -54,6 +54,7 @@ const reviewsSchema = {
             },
             photos: {
                 bsonType: "array",
+                description: "Optional array of customer photo attachments (polymorphic schema)",
                 items: { bsonType: "string" }
             },
             discussionId: {
@@ -108,7 +109,7 @@ const discussionsSchema = {
 };
 
 // Schema validator for ratings summary collection
-const ratingsSchema = {
+const ratingsSummarySchema = {
     $jsonSchema: {
         bsonType: "object",
         required: ["productId", "averageRating", "totalRatings"],
@@ -141,33 +142,43 @@ const ratingsSchema = {
 
 const collections = targetDb.getCollectionNames();
 
-// Initialize or update reviews collection
+// 1. Initialize or update reviews collection
 if (!collections.includes("reviews")) {
     targetDb.createCollection("reviews", { validator: reviewsSchema, validationLevel: "moderate" });
 } else {
     targetDb.runCommand({ collMod: "reviews", validator: reviewsSchema, validationLevel: "moderate" });
 }
 
-// Initialize or update discussions collection
+// 2. Initialize or update discussions collection
 if (!collections.includes("discussions")) {
     targetDb.createCollection("discussions", { validator: discussionsSchema, validationLevel: "moderate" });
 } else {
     targetDb.runCommand({ collMod: "discussions", validator: discussionsSchema, validationLevel: "moderate" });
 }
 
-// Initialize or update ratings collection
-if (!collections.includes("ratings")) {
-    targetDb.createCollection("ratings", { validator: ratingsSchema, validationLevel: "moderate" });
+// 3. Initialize or update product_ratings_summary collection
+if (!collections.includes("product_ratings_summary")) {
+    targetDb.createCollection("product_ratings_summary", { validator: ratingsSummarySchema, validationLevel: "moderate" });
 } else {
-    targetDb.runCommand({ collMod: "ratings", validator: ratingsSchema, validationLevel: "moderate" });
+    targetDb.runCommand({ collMod: "product_ratings_summary", validator: ratingsSummarySchema, validationLevel: "moderate" });
 }
 
-// Optimization indexes
+// Also keep ratings collection for backwards compatibility
+if (!collections.includes("ratings")) {
+    targetDb.createCollection("ratings", { validator: ratingsSummarySchema, validationLevel: "moderate" });
+} else {
+    targetDb.runCommand({ collMod: "ratings", validator: ratingsSummarySchema, validationLevel: "moderate" });
+}
+
+// Optimization indexes: productId, author.userId, and text index
 targetDb.reviews.createIndex({ productId: 1, createdAt: -1 }, { name: "ix_reviews_product_created" });
+targetDb.reviews.createIndex({ "author.userId": 1 }, { name: "ix_reviews_author_userId" });
+targetDb.reviews.createIndex({ headline: "text", content: "text", productName: "text" }, { name: "ix_reviews_text" });
 targetDb.reviews.createIndex({ rating: 1 }, { name: "ix_reviews_rating" });
 targetDb.reviews.createIndex({ discussionId: 1 }, { name: "ix_reviews_discussion", sparse: true });
 
 targetDb.discussions.createIndex({ productId: 1 }, { name: "ix_discussions_product" });
 targetDb.discussions.createIndex({ reviewId: 1 }, { name: "ix_discussions_review", sparse: true });
 
+targetDb.product_ratings_summary.createIndex({ productId: 1 }, { unique: true, name: "uq_product_ratings_summary_product" });
 targetDb.ratings.createIndex({ productId: 1 }, { unique: true, name: "uq_ratings_product" });

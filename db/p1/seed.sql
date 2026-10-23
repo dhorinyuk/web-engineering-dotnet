@@ -16,35 +16,35 @@ BEGIN
 END;
 
 -- Seed replicated product catalog cache
-IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE ProductId = 1)
+IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 1)
 BEGIN
-    INSERT INTO dbo.Products (ProductId, Sku, Name, Price, IsAvailable, CreatedBy)
+    INSERT INTO dbo.Products (Id, Sku, Name, Price, IsAvailable, CreatedBy)
     VALUES (1, N'MOT-8100-5W40-5L', N'Моторна олива Motul 8100 X-cess Gen2 5W-40 5л', 1850.00, 1, N'SEED');
 END;
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE ProductId = 2)
+IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 2)
 BEGIN
-    INSERT INTO dbo.Products (ProductId, Sku, Name, Price, IsAvailable, CreatedBy)
+    INSERT INTO dbo.Products (Id, Sku, Name, Price, IsAvailable, CreatedBy)
     VALUES (2, N'BRM-P85020', N'Комплект передніх гальмівних колодок Brembo P 85 020', 2800.00, 1, N'SEED');
 END;
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE ProductId = 3)
+IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 3)
 BEGIN
-    INSERT INTO dbo.Products (ProductId, Sku, Name, Price, IsAvailable, CreatedBy)
+    INSERT INTO dbo.Products (Id, Sku, Name, Price, IsAvailable, CreatedBy)
     VALUES (3, N'TOP-ANAM1621', N'Ключ динамометричний Toptul 1/2" 40-210 Нм (ANAM1621)', 3750.00, 1, N'SEED');
 END;
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE ProductId = 4)
+IF NOT EXISTS (SELECT 1 FROM dbo.Products WHERE Id = 4)
 BEGIN
-    INSERT INTO dbo.Products (ProductId, Sku, Name, Price, IsAvailable, CreatedBy)
+    INSERT INTO dbo.Products (Id, Sku, Name, Price, IsAvailable, CreatedBy)
     VALUES (4, N'BOS-S4-60AH', N'Акумулятор автомобільний Bosch S4 005 Silver 60Ah 540A', 4300.00, 1, N'SEED');
 END;
 
 -- Seed test order aggregate
 IF NOT EXISTS (SELECT 1 FROM dbo.Orders WHERE OrderNumber = N'ORD-2026-0001')
 BEGIN
-    DECLARE @CustomerId INT = (SELECT CustomerId FROM dbo.Customers WHERE Email = N'olexandr.kovalenko@example.com');
-    DECLARE @OrderId INT;
+    DECLARE @CustomerId BIGINT = (SELECT Id FROM dbo.Customers WHERE Email = N'olexandr.kovalenko@example.com');
+    DECLARE @OrderId BIGINT;
 
     INSERT INTO dbo.Orders (OrderNumber, CustomerId, Status, TotalAmount, CreatedBy)
     VALUES (N'ORD-2026-0001', @CustomerId, N'StockConfirmed', 4650.00, N'SEED');
@@ -68,10 +68,10 @@ BEGIN
         (@OrderId, 2, N'Комплект передніх гальмівних колодок Brembo P 85 020', 2800.00, 1, N'SEED');
 
     -- Status history transitions
-    INSERT INTO dbo.OrderStatusHistory (OrderId, FromStatus, ToStatus, Reason, CreatedBy)
+    INSERT INTO dbo.OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedAt, Comment)
     VALUES 
-        (@OrderId, NULL, N'Submitted', N'Order created via web store', N'SEED'),
-        (@OrderId, N'Submitted', N'AwaitingValidation', N'Payment method verified', N'SEED'),
-        (@OrderId, N'AwaitingValidation', N'StockConfirmed', N'Items reserved at Kyiv warehouse', N'SEED');
+        (@OrderId, NULL, N'Submitted', SYSUTCDATETIME(), N'Order created via web store'),
+        (@OrderId, N'Submitted', N'AwaitingValidation', SYSUTCDATETIME(), N'Payment method verified'),
+        (@OrderId, N'AwaitingValidation', N'StockConfirmed', SYSUTCDATETIME(), N'Items reserved at Kyiv warehouse');
 END;
 GO

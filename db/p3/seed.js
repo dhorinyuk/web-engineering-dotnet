@@ -2,7 +2,7 @@
 
 const targetDb = db.getSiblingDB("ReviewsServiceDb");
 
-// Seed discussion thread entity for referencing
+// 1. Seed discussion thread entity for cross-collection referencing
 const sampleDiscussionId = ObjectId("66f00101a1b2c3d4e5f60001");
 
 targetDb.discussions.updateOne(
@@ -31,7 +31,7 @@ targetDb.discussions.updateOne(
     { upsert: true }
 );
 
-// Review 1: Detailed polymorphic document with photos, embedded comments and discussion reference
+// 2. Review 1: Rich document demonstrating embedding (author, comments), referencing (discussionId), and photos
 targetDb.reviews.updateOne(
     { productId: 1, "author.name": "Олександр Коваленко" },
     {
@@ -73,7 +73,7 @@ targetDb.reviews.updateOne(
     { upsert: true }
 );
 
-// Review 2: Minimal polymorphic document without photos, comments or discussion reference
+// 3. Review 2: Flexible schema demonstration (minimal document: no photos array, empty comments, no discussionId)
 targetDb.reviews.updateOne(
     { productId: 2, "author.name": "Ірина Шевченко" },
     {
@@ -89,7 +89,6 @@ targetDb.reviews.updateOne(
                 email: "iryna.shevchenko@example.com",
                 isVerifiedBuyer: true
             },
-            photos: [],
             comments: [],
             discussionId: null,
             createdAt: new Date("2026-02-14T10:15:00Z"),
@@ -99,31 +98,33 @@ targetDb.reviews.updateOne(
     { upsert: true }
 );
 
-// Seed aggregate rating score summary
-targetDb.ratings.updateOne(
-    { productId: 1 },
+// 4. Seed aggregate rating summaries (updating both product_ratings_summary and ratings)
+const ratingSummaries = [
     {
-        $set: {
-            productId: 1,
-            averageRating: 5.0,
-            totalRatings: 1,
-            breakdown: { star1: 0, star2: 0, star3: 0, star4: 0, star5: 1 },
-            updatedAt: new Date("2026-02-12T18:35:00Z")
-        }
+        productId: 1,
+        averageRating: 5.0,
+        totalRatings: 1,
+        breakdown: { star1: 0, star2: 0, star3: 0, star4: 0, star5: 1 },
+        updatedAt: new Date("2026-02-12T18:35:00Z")
     },
-    { upsert: true }
-);
+    {
+        productId: 2,
+        averageRating: 4.8,
+        totalRatings: 5,
+        breakdown: { star1: 0, star2: 0, star3: 0, star4: 1, star5: 4 },
+        updatedAt: new Date("2026-02-14T10:15:00Z")
+    }
+];
 
-targetDb.ratings.updateOne(
-    { productId: 2 },
-    {
-        $set: {
-            productId: 2,
-            averageRating: 4.8,
-            totalRatings: 5,
-            breakdown: { star1: 0, star2: 0, star3: 0, star4: 1, star5: 4 },
-            updatedAt: new Date("2026-02-14T10:15:00Z")
-        }
-    },
-    { upsert: true }
-);
+for (const summary of ratingSummaries) {
+    targetDb.product_ratings_summary.updateOne(
+        { productId: summary.productId },
+        { $set: summary },
+        { upsert: true }
+    );
+    targetDb.ratings.updateOne(
+        { productId: summary.productId },
+        { $set: summary },
+        { upsert: true }
+    );
+}

@@ -14,6 +14,203 @@ The system is separated into three bounded contexts following Domain-Driven Desi
 
 ---
 
+## Entity-Relationship Diagrams (ERD)
+
+### Project 1: Ordering Service Database
+- **PlantUML File:** [docs/erd-p1.puml](docs/erd-p1.puml)
+
+```plantuml
+@startuml
+!theme plain
+skinparam linetype ortho
+skinparam roundcorner 4
+
+entity "Customers" as customers {
+  Id : BIGINT <<PK, identity>>
+  --
+  ExternalId : UNIQUEIDENTIFIER <<UQ>>
+  FullName : NVARCHAR(100)
+  Email : NVARCHAR(255) <<UQ>>
+  Phone : NVARCHAR(30)
+  CreatedAt : DATETIME2
+  CreatedBy : NVARCHAR(100)
+  UpdatedAt : DATETIME2
+  UpdatedBy : NVARCHAR(100)
+  IsDeleted : BIT
+  RowVersion : ROWVERSION
+}
+
+entity "Orders" as orders {
+  Id : BIGINT <<PK, identity>>
+  --
+  OrderNumber : NVARCHAR(32) <<UQ>>
+  CustomerId : BIGINT <<FK>>
+  Status : NVARCHAR(32)
+  TotalAmount : DECIMAL(18,2)
+  CreatedAt : DATETIME2
+  CreatedBy : NVARCHAR(100)
+  UpdatedAt : DATETIME2
+  UpdatedBy : NVARCHAR(100)
+  IsDeleted : BIT
+  RowVersion : ROWVERSION
+}
+
+entity "OrderDetails" as order_details {
+  OrderId : BIGINT <<PK, FK>>
+  --
+  RecipientName : NVARCHAR(100)
+  RecipientPhone : NVARCHAR(30)
+  ShippingAddress : NVARCHAR(255)
+  City : NVARCHAR(100)
+  PostalCode : NVARCHAR(20)
+  ShippingMethod : NVARCHAR(50)
+  TrackingNumber : NVARCHAR(100)
+  DeliveredAt : DATETIME2
+  CreatedAt : DATETIME2
+  CreatedBy : NVARCHAR(100)
+  UpdatedAt : DATETIME2
+  UpdatedBy : NVARCHAR(100)
+  IsDeleted : BIT
+}
+
+entity "Products" as products {
+  Id : BIGINT <<PK>>
+  --
+  Sku : NVARCHAR(64) <<UQ>>
+  Name : NVARCHAR(200)
+  Price : DECIMAL(18,2)
+  IsAvailable : BIT
+  CreatedAt : DATETIME2
+  CreatedBy : NVARCHAR(100)
+  UpdatedAt : DATETIME2
+  UpdatedBy : NVARCHAR(100)
+  IsDeleted : BIT
+}
+
+entity "OrderItems" as order_items {
+  OrderId : BIGINT <<PK, FK>>
+  ProductId : BIGINT <<PK, FK>>
+  --
+  ProductName : NVARCHAR(200)
+  UnitPrice : DECIMAL(18,2)
+  Units : INT
+  SubTotal : DECIMAL(18,2) <<computed>>
+  CreatedAt : DATETIME2
+  CreatedBy : NVARCHAR(100)
+  UpdatedAt : DATETIME2
+  UpdatedBy : NVARCHAR(100)
+  IsDeleted : BIT
+}
+
+entity "OrderStatusHistory" as order_status_history {
+  HistoryId : BIGINT <<PK, identity>>
+  --
+  OrderId : BIGINT <<FK>>
+  OldStatus : NVARCHAR(30)
+  NewStatus : NVARCHAR(30)
+  ChangedAt : DATETIME2
+  Comment : NVARCHAR(500)
+}
+
+customers ||--o{ orders : "places (1:N)"
+orders ||--|| order_details : "has delivery details (1:1)"
+orders ||--|{ order_items : "contains (1:N)"
+products ||--o{ order_items : "referenced by (1:N)"
+orders ||--o{ order_status_history : "tracks state history (1:N)"
+@enduml
+```
+
+---
+
+### Project 2: Catalog Service Database
+- **PlantUML File:** [docs/erd-p2.puml](docs/erd-p2.puml)
+
+```plantuml
+@startuml
+!theme plain
+skinparam linetype ortho
+skinparam roundcorner 4
+
+entity "Brands" as brands {
+  Id : INT <<PK, identity>>
+  --
+  Name : NVARCHAR(100) <<UQ>>
+  Code : NVARCHAR(50) <<UQ>>
+  Country : NVARCHAR(60)
+  IsActive : BIT
+  CreatedAt : DATETIME2
+  UpdatedAt : DATETIME2
+}
+
+entity "Categories" as categories {
+  Id : INT <<PK, identity>>
+  --
+  ParentCategoryId : INT <<FK, self-ref>>
+  Name : NVARCHAR(100)
+  Slug : NVARCHAR(120) <<UQ>>
+  DisplayOrder : INT
+  IsActive : BIT
+  CreatedAt : DATETIME2
+  UpdatedAt : DATETIME2
+}
+
+entity "Products" as products {
+  Id : INT <<PK, identity>>
+  --
+  BrandId : INT <<FK>>
+  Sku : NVARCHAR(64) <<UQ>>
+  Slug : NVARCHAR(220) <<UQ>>
+  Name : NVARCHAR(200)
+  Price : DECIMAL(18,2)
+  CostPrice : DECIMAL(18,2)
+  WeightKg : DECIMAL(8,3)
+  Stock : INT
+  IsAvailable : BIT
+  RowVersion : ROWVERSION
+  CreatedAt : DATETIME2
+  UpdatedAt : DATETIME2
+}
+
+entity "ProductDetails" as product_details {
+  ProductId : INT <<PK, FK>>
+  --
+  TechnicalDescription : NVARCHAR(MAX)
+  WarrantyMonths : INT
+  CountryOfOrigin : NVARCHAR(60)
+  Dimensions : NVARCHAR(100)
+  InstallationGuideUrl : NVARCHAR(255)
+  CreatedAt : DATETIME2
+  UpdatedAt : DATETIME2
+}
+
+entity "ProductCategories" as product_categories {
+  ProductId : INT <<PK, FK>>
+  CategoryId : INT <<PK, FK>>
+  --
+  IsPrimary : BIT
+  AssignedAt : DATETIME2
+}
+
+entity "ProductReviewsSummary" as reviews_summary {
+  ProductId : INT <<PK, FK>>
+  --
+  AverageRating : DECIMAL(3,2)
+  TotalReviewsCount : INT
+  LastReviewedAt : DATETIME2
+  UpdatedAt : DATETIME2
+}
+
+brands ||--o{ products : "manufactures (1:N)"
+categories ||--o{ categories : "subcategories (1:N self-ref)"
+products ||--|{ product_categories : "categorized in (1:N)"
+categories ||--|{ product_categories : "contains (1:N)"
+products ||--|| product_details : "technical specifications (1:1)"
+products ||--|| reviews_summary : "aggregated reviews cache (1:1)"
+@enduml
+```
+
+---
+
 ## Data Consistency and Duplication Matrix
 
 | Duplicated Field | Source of Truth | Destination Context | Storage Target | Pattern | Consistency Guarantee |
@@ -58,7 +255,7 @@ The system is separated into three bounded contexts following Domain-Driven Desi
 ```bash
 # Start Microsoft SQL Server 2022
 docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=YourStrong@Passw0rd!" \
-   -p 1433:1433 --name mssql-ecommerce -d mcr.microsoft.com/mssql/server:2022-latest
+   -p 1433:1433 --name mssql-ecommerce -d [mcr.microsoft.com/mssql/server:2022-latest](https://mcr.microsoft.com/mssql/server:2022-latest)
 
 # Start MongoDB
 docker run -p 27017:27017 --name mongo-ecommerce -d mongo:latest
@@ -86,12 +283,11 @@ USE OrderingDb;
 EXEC dbo.usp_ChangeOrderStatus 
     @OrderId = 1, 
     @NewStatus = N'Paid', 
-    @UpdatedBy = N'PAYMENT_GATEWAY', 
-    @Reason = N'Payment confirmed via LiqPay';
+    @Comment = N'Payment confirmed via LiqPay';
 
 -- Inspect order status and audit history
-SELECT OrderId, OrderNumber, Status, TotalAmount, RowVersion FROM dbo.Orders WHERE OrderId = 1;
-SELECT * FROM dbo.OrderStatusHistory WHERE OrderId = 1 ORDER BY CreatedAt ASC;
+SELECT Id, OrderNumber, Status, TotalAmount, RowVersion FROM dbo.Orders WHERE Id = 1;
+SELECT * FROM dbo.OrderStatusHistory WHERE OrderId = 1 ORDER BY ChangedAt ASC;
 ```
 
 ---
@@ -136,7 +332,7 @@ mongosh "mongodb://localhost:27017" db/p3/seed.js
 ```
 
 **Verification Queries:**
-```javascript
+```mongodb
 use ReviewsServiceDb;
 
 // Query polymorphic review document with embedded comments and referenced discussion
