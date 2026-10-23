@@ -18,7 +18,6 @@ The system is separated into three bounded contexts following Domain-Driven Desi
 
 ### Project 1: Ordering Service Database
 - PlantUML: [docs/erd-p1.puml](docs/erd-p1.puml)
-- Interactive diagram: [https://dbdiagram.io/d/OrderingDb-ERD-P1](https://dbdiagram.io/d/OrderingDb-ERD-P1)
 
 ```plantuml
 @startuml
@@ -123,7 +122,6 @@ orders ||--o{ order_status_history : "tracks state history (1:N)"
 
 ### Project 2: Catalog Service Database
 - PlantUML: [docs/erd-p2.puml](docs/erd-p2.puml)
-- Interactive diagram: [https://dbdiagram.io/d/CatalogDb-ERD-P2](https://dbdiagram.io/d/CatalogDb-ERD-P2)
 
 ```plantuml
 @startuml
@@ -449,7 +447,7 @@ mongosh "mongodb://localhost:27017" db/p3/seed.js
 ```
 
 **Verification Queries:**
-```javascript
+```mongodb
 use ReviewsServiceDb;
 
 // Query polymorphic review document with embedded comments and referenced discussion
