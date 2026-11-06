@@ -47,8 +47,8 @@ public class BrandConfiguration : IEntityTypeConfiguration<Brand>
         builder.HasData(
             new { Id = 1, Name = "Motul", Code = "MOTUL", Country = "France", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
             new { Id = 2, Name = "Brembo", Code = "BREMBO", Country = "Italy", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
-            new { Id = 3, Name = "Toptul", Code = "TOPTUL", Country = "Taiwan", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
-            new { Id = 4, Name = "Bosch", Code = "BOSCH", Country = "Germany", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null }
+            new { Id = 3, Name = "Bosch", Code = "BOSCH", Country = "Germany", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
+            new { Id = 4, Name = "Toptul", Code = "TOPTUL", Country = "Taiwan", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null }
         );
     }
 }

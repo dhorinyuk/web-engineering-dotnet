@@ -89,15 +89,12 @@ if (!app.Environment.IsProduction())
     var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
     try
     {
-        if (db.Database.IsRelational())
-        {
-            await db.Database.MigrateAsync();
-            await DbInitializer.SeedAsync(db);
-        }
+        await db.Database.MigrateAsync();
+        await DbInitializer.SeedAsync(db);
     }
     catch (Exception ex)
     {
-        Log.Warning(ex, "Automatic migration or seeding was skipped (SQL Server connection deferred): {Message}", ex.Message);
+        Log.Warning(ex, "Automatic migration or seeding was deferred on startup: {Message}", ex.Message);
     }
 }
 

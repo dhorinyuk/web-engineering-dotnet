@@ -2,15 +2,14 @@ namespace Catalog.Domain.Entities;
 
 public class ProductCategory
 {
-    public int ProductId { get; private set; }
-    public int CategoryId { get; private set; }
-    public bool IsPrimary { get; private set; }
-    public DateTime AddedAt { get; private set; }
+    public int ProductId { get; set; }
+    public Product Product { get; set; } = null!;
+    public int CategoryId { get; set; }
+    public Category Category { get; set; } = null!;
+    public DateTime AddedAt { get; set; }
+    public bool IsPrimary { get; set; }
 
-    public Product Product { get; private set; } = null!;
-    public Category Category { get; private set; } = null!;
-
-    private ProductCategory()
+    public ProductCategory()
     {
     }
 

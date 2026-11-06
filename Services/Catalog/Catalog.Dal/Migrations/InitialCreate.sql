@@ -13,7 +13,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [Brands] (
@@ -31,7 +31,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [Categories] (
@@ -51,7 +51,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [Products] (
@@ -80,14 +80,14 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [ProductCategories] (
         [ProductId] int NOT NULL,
         [CategoryId] int NOT NULL,
-        [IsPrimary] bit NOT NULL DEFAULT CAST(0 AS bit),
         [AddedAt] datetime2 NOT NULL DEFAULT (SYSUTCDATETIME()),
+        [IsPrimary] bit NOT NULL DEFAULT CAST(0 AS bit),
         CONSTRAINT [PK_ProductCategories] PRIMARY KEY ([ProductId], [CategoryId]),
         CONSTRAINT [FK_ProductCategories_Categories_CategoryId] FOREIGN KEY ([CategoryId]) REFERENCES [Categories] ([Id]) ON DELETE CASCADE,
         CONSTRAINT [FK_ProductCategories_Products_ProductId] FOREIGN KEY ([ProductId]) REFERENCES [Products] ([Id]) ON DELETE CASCADE
@@ -97,7 +97,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [ProductDetails] (
@@ -118,7 +118,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE TABLE [ProductImages] (
@@ -137,7 +137,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'Country', N'CreatedAt', N'IsActive', N'Name', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Brands]'))
@@ -145,8 +145,8 @@ BEGIN
     EXEC(N'INSERT INTO [Brands] ([Id], [Code], [Country], [CreatedAt], [IsActive], [Name], [UpdatedAt])
     VALUES (1, N''MOTUL'', N''France'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Motul'', NULL),
     (2, N''BREMBO'', N''Italy'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Brembo'', NULL),
-    (3, N''TOPTUL'', N''Taiwan'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Toptul'', NULL),
-    (4, N''BOSCH'', N''Germany'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Bosch'', NULL)');
+    (3, N''BOSCH'', N''Germany'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Bosch'', NULL),
+    (4, N''TOPTUL'', N''Taiwan'', ''2026-01-01T00:00:00.0000000Z'', CAST(1 AS bit), N''Toptul'', NULL)');
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'Country', N'CreatedAt', N'IsActive', N'Name', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Brands]'))
         SET IDENTITY_INSERT [Brands] OFF;
 END;
@@ -154,7 +154,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'DisplayOrder', N'IsActive', N'Name', N'ParentCategoryId', N'Slug', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Categories]'))
@@ -162,8 +162,6 @@ BEGIN
     EXEC(N'INSERT INTO [Categories] ([Id], [CreatedAt], [DisplayOrder], [IsActive], [Name], [ParentCategoryId], [Slug], [UpdatedAt])
     VALUES (1, ''2026-01-01T00:00:00.0000000Z'', 10, CAST(1 AS bit), N''Мастила та автохімія'', NULL, N''oils-fluids'', NULL),
     (3, ''2026-01-01T00:00:00.0000000Z'', 20, CAST(1 AS bit), N''Гальмівна система'', NULL, N''brakes'', NULL),
-    (5, ''2026-01-01T00:00:00.0000000Z'', 30, CAST(1 AS bit), N''Автоінструмент'', NULL, N''tools'', NULL),
-    (6, ''2026-01-01T00:00:00.0000000Z'', 40, CAST(1 AS bit), N''Акумулятори'', NULL, N''batteries'', NULL),
     (2, ''2026-01-01T00:00:00.0000000Z'', 11, CAST(1 AS bit), N''Моторні оливи'', 1, N''engine-oils'', NULL),
     (4, ''2026-01-01T00:00:00.0000000Z'', 21, CAST(1 AS bit), N''Гальмівні колодки'', 3, N''brake-pads'', NULL)');
     IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'DisplayOrder', N'IsActive', N'Name', N'ParentCategoryId', N'Slug', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Categories]'))
@@ -173,7 +171,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_Brands_Code] ON [Brands] ([Code]);
@@ -182,7 +180,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_Brands_Name] ON [Brands] ([Name]);
@@ -191,7 +189,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE INDEX [IX_Categories_ParentCategoryId] ON [Categories] ([ParentCategoryId]);
@@ -200,7 +198,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_Categories_Slug] ON [Categories] ([Slug]);
@@ -209,7 +207,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE INDEX [IX_ProductCategories_CategoryId_AddedAt] ON [ProductCategories] ([CategoryId], [AddedAt]);
@@ -218,7 +216,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE INDEX [IX_ProductImages_ProductId_DisplayOrder] ON [ProductImages] ([ProductId], [DisplayOrder]);
@@ -227,7 +225,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE INDEX [IX_Products_BrandId_Price] ON [Products] ([BrandId], [Price]);
@@ -236,7 +234,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_Products_Sku] ON [Products] ([Sku]);
@@ -245,7 +243,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_Products_Slug] ON [Products] ([Slug]);
@@ -254,11 +252,11 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20261106122322_InitialCreate'
+    WHERE [MigrationId] = N'20261106150239_InitialCreate'
 )
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-    VALUES (N'20261106122322_InitialCreate', N'8.0.11');
+    VALUES (N'20261106150239_InitialCreate', N'8.0.11');
 END;
 GO
 

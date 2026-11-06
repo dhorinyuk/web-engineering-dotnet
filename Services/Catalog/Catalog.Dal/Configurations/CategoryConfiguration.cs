@@ -52,9 +52,7 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
             new { Id = 1, ParentCategoryId = (int?)null, Name = "Мастила та автохімія", Slug = "oils-fluids", DisplayOrder = 10, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
             new { Id = 2, ParentCategoryId = (int?)1, Name = "Моторні оливи", Slug = "engine-oils", DisplayOrder = 11, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
             new { Id = 3, ParentCategoryId = (int?)null, Name = "Гальмівна система", Slug = "brakes", DisplayOrder = 20, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
-            new { Id = 4, ParentCategoryId = (int?)3, Name = "Гальмівні колодки", Slug = "brake-pads", DisplayOrder = 21, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
-            new { Id = 5, ParentCategoryId = (int?)null, Name = "Автоінструмент", Slug = "tools", DisplayOrder = 30, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null },
-            new { Id = 6, ParentCategoryId = (int?)null, Name = "Акумулятори", Slug = "batteries", DisplayOrder = 40, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null }
+            new { Id = 4, ParentCategoryId = (int?)3, Name = "Гальмівні колодки", Slug = "brake-pads", DisplayOrder = 21, IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = (DateTime?)null }
         );
     }
 }

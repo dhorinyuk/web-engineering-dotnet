@@ -96,8 +96,8 @@ namespace Catalog.Dal.Migrations
                 {
                     ProductId = table.Column<int>(type: "int", nullable: false),
                     CategoryId = table.Column<int>(type: "int", nullable: false),
-                    IsPrimary = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
-                    AddedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                    AddedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    IsPrimary = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {
@@ -172,8 +172,8 @@ namespace Catalog.Dal.Migrations
                 {
                     { 1, "MOTUL", "France", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Motul", null },
                     { 2, "BREMBO", "Italy", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Brembo", null },
-                    { 3, "TOPTUL", "Taiwan", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Toptul", null },
-                    { 4, "BOSCH", "Germany", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Bosch", null }
+                    { 3, "BOSCH", "Germany", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Bosch", null },
+                    { 4, "TOPTUL", "Taiwan", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "Toptul", null }
                 });
 
             migrationBuilder.InsertData(
@@ -183,8 +183,6 @@ namespace Catalog.Dal.Migrations
                 {
                     { 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 10, true, "Мастила та автохімія", null, "oils-fluids", null },
                     { 3, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 20, true, "Гальмівна система", null, "brakes", null },
-                    { 5, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 30, true, "Автоінструмент", null, "tools", null },
-                    { 6, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 40, true, "Акумулятори", null, "batteries", null },
                     { 2, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 11, true, "Моторні оливи", 1, "engine-oils", null },
                     { 4, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 21, true, "Гальмівні колодки", 3, "brake-pads", null }
                 });

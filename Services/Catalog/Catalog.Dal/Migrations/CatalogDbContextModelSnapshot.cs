@@ -90,20 +90,20 @@ namespace Catalog.Dal.Migrations
                         new
                         {
                             Id = 3,
-                            Code = "TOPTUL",
-                            Country = "Taiwan",
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            IsActive = true,
-                            Name = "Toptul"
-                        },
-                        new
-                        {
-                            Id = 4,
                             Code = "BOSCH",
                             Country = "Germany",
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Name = "Bosch"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "TOPTUL",
+                            Country = "Taiwan",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Toptul"
                         });
                 });
 
@@ -193,24 +193,6 @@ namespace Catalog.Dal.Migrations
                             Name = "Гальмівні колодки",
                             ParentCategoryId = 3,
                             Slug = "brake-pads"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 30,
-                            IsActive = true,
-                            Name = "Автоінструмент",
-                            Slug = "tools"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 40,
-                            IsActive = true,
-                            Name = "Акумулятори",
-                            Slug = "batteries"
                         });
                 });
 

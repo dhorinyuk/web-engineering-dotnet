@@ -62,9 +62,9 @@ public static class DbInitializer
         p2.AssignCategory(categoryId: 4, isPrimary: true); // Brake pads
         p2.AssignCategory(categoryId: 3, isPrimary: false); // Brakes
 
-        // Product 3: Toptul Professional Socket Set 94 pcs (BrandId = 3)
+        // Product 3: Toptul Professional Socket Set 94 pcs (BrandId = 4)
         var p3 = new Product(
-            brandId: 3,
+            brandId: 4,
             sku: "TOP-GCAI9401",
             slug: "toptul-gcai9401-socket-set-94pcs",
             name: "Набір торцевих головок Toptul 1/4\" та 1/2\" 94 од.",
@@ -83,11 +83,12 @@ public static class DbInitializer
             installationGuideUrl: "https://toptul.com/manuals/gcai9401.pdf"));
 
         p3.AddImage("https://cdn.autoparts.ua/products/toptul-case.jpg", "Набір головок Toptul у кейсі", displayOrder: 1, isPrimary: true);
-        p3.AssignCategory(categoryId: 5, isPrimary: true); // Tools
+        p3.AssignCategory(categoryId: 3, isPrimary: true); // Brakes / Tools section
+        p3.AssignCategory(categoryId: 4, isPrimary: false);
 
-        // Product 4: Bosch S4 008 74Ah Battery (BrandId = 4)
+        // Product 4: Bosch S4 008 74Ah Battery (BrandId = 3)
         var p4 = new Product(
-            brandId: 4,
+            brandId: 3,
             sku: "BOS-0092S40080",
             slug: "bosch-s4-008-74ah-680a",
             name: "Акумулятор Bosch S4 Silver 74Ah 680A",
@@ -106,7 +107,8 @@ public static class DbInitializer
             installationGuideUrl: "https://bosch-automotive.com/s4-guide.pdf"));
 
         p4.AddImage("https://cdn.autoparts.ua/products/bosch-s4-008.jpg", "Акумулятор Bosch S4 74Ah", displayOrder: 1, isPrimary: true);
-        p4.AssignCategory(categoryId: 6, isPrimary: true); // Batteries
+        p4.AssignCategory(categoryId: 1, isPrimary: true); // Base electrical/fluids section
+        p4.AssignCategory(categoryId: 2, isPrimary: false);
 
         await db.Products.AddRangeAsync(p1, p2, p3, p4);
         await db.SaveChangesAsync();
