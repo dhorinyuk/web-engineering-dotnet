@@ -15,6 +15,9 @@
     <ProjectReference Include="..\Services\Orders\Orders.Api\Orders.Api.csproj">
       <IsAspireProjectResource>true</IsAspireProjectResource>
     </ProjectReference>
+    <ProjectReference Include="..\Services\Reviews\Reviews.WebApi\Reviews.WebApi.csproj">
+      <IsAspireProjectResource>true</IsAspireProjectResource>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
