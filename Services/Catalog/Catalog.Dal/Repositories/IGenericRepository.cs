@@ -15,4 +15,5 @@ public interface IGenericRepository<T> where T : class
     Task<IReadOnlyList<T>> ListAsync(ISpecification<T> spec, CancellationToken ct = default);
     Task<int> CountAsync(ISpecification<T> spec, CancellationToken ct = default);
     Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken ct = default);
+    IQueryable<T> WithSpecification(ISpecification<T> spec);
 }

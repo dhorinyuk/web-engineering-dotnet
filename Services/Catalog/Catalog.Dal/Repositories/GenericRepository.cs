@@ -71,6 +71,11 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
             : await DbSet.CountAsync(ct);
     }
 
+    public virtual IQueryable<T> WithSpecification(ISpecification<T> spec)
+    {
+        return ApplySpecification(spec);
+    }
+
     protected IQueryable<T> ApplySpecification(ISpecification<T> spec)
     {
         return SpecificationEvaluator<T>.GetQuery(DbSet.AsQueryable(), spec);

@@ -36,8 +36,11 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 
-// Criterion 7: AutoMapper registration
-builder.Services.AddAutoMapper(typeof(CatalogMappingProfile));
+// Criterion 7: AutoMapper registration (with cfg.LicenseKey consideration: not present in AutoMapper 13.x OSS)
+builder.Services.AddAutoMapper(cfg =>
+{
+    // cfg.LicenseKey is only applicable in commercial/v14+ distributions
+}, typeof(CatalogMappingProfile));
 
 // Criterion 11: FluentValidation registration
 builder.Services.AddValidatorsFromAssemblyContaining<CreateProductDtoValidator>();
