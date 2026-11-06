@@ -33,10 +33,9 @@ public class CreateReviewCommandHandler : IRequestHandler<CreateReviewCommand, s
         var review = new Review(
             request.ProductId,
             request.ProductName,
-            request.Rating,
-            request.Headline,
-            request.Content,
             author,
+            request.Rating,
+            request.Text,
             discussionId,
             request.Photos);
 

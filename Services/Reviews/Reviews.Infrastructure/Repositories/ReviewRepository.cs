@@ -9,16 +9,16 @@ namespace Reviews.Infrastructure.Repositories;
 
 public class ReviewRepository : IReviewRepository
 {
-    private readonly IMongoCollection<Review> _collection;
+    private readonly IMongoCollection<Review> _reviews;
 
     public ReviewRepository(MongoDbContext context)
     {
-        _collection = context.Reviews;
+        _reviews = context.Reviews;
     }
 
     public async Task<Review?> GetByIdAsync(ObjectId id, CancellationToken ct = default)
     {
-        return await _collection
+        return await _reviews
             .Find(r => r.Id == id)
             .FirstOrDefaultAsync(ct);
     }
@@ -33,12 +33,12 @@ public class ReviewRepository : IReviewRepository
             Builders<Review>.Filter.Eq(r => r.Author.UserId, authorUserId)
         );
 
-        return await _collection.Find(filter).AnyAsync(ct);
+        return await _reviews.Find(filter).AnyAsync(ct);
     }
 
     public async Task AddAsync(Review review, CancellationToken ct = default)
     {
-        await _collection.InsertOneAsync(review, cancellationToken: ct);
+        await _reviews.InsertOneAsync(review, cancellationToken: ct);
     }
 
     // Criterion 11: Optimistic concurrency control via Version field check
@@ -52,7 +52,7 @@ public class ReviewRepository : IReviewRepository
             Builders<Review>.Filter.Eq(r => r.Version, expectedVersion)
         );
 
-        var result = await _collection.ReplaceOneAsync(
+        var result = await _reviews.ReplaceOneAsync(
             filter,
             review,
             new ReplaceOptions { IsUpsert = false },
@@ -65,12 +65,5 @@ public class ReviewRepository : IReviewRepository
         }
     }
 
-    public async Task DeleteAsync(ObjectId id, CancellationToken ct = default)
-    {
-        var result = await _collection.DeleteOneAsync(r => r.Id == id, ct);
-        if (result.DeletedCount == 0)
-        {
-            throw new EntityNotFoundException("Review", id);
-        }
-    }
+    public Task DeleteAsync(ObjectId id, CancellationToken ct = default) => _reviews.DeleteOneAsync(r => r.Id == id, ct);
 }

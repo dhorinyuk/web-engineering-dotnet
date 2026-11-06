@@ -15,16 +15,10 @@ public class UpdateReviewCommandValidator : AbstractValidator<UpdateReviewComman
         RuleFor(x => x.Rating)
             .InclusiveBetween(1, 5).WithMessage("Rating must be between 1 and 5.");
 
-        When(x => !string.IsNullOrWhiteSpace(x.Headline), () =>
+        When(x => !string.IsNullOrWhiteSpace(x.Text), () =>
         {
-            RuleFor(x => x.Headline)
-                .Length(3, 200).WithMessage("Headline must be between 3 and 200 characters.");
-        });
-
-        When(x => !string.IsNullOrWhiteSpace(x.Content), () =>
-        {
-            RuleFor(x => x.Content)
-                .Length(5, 4000).WithMessage("Content must be between 5 and 4000 characters.");
+            RuleFor(x => x.Text!)
+                .Length(5, 4000).WithMessage("Text must be between 5 and 4000 characters.");
         });
     }
 }

@@ -16,13 +16,11 @@ public class CreateReviewRequest
     [Range(1, 5, ErrorMessage = "Rating must be between 1 and 5.")]
     public int Rating { get; set; }
 
-    [Required]
-    [StringLength(200, MinimumLength = 3)]
-    public string Headline { get; set; } = null!;
+    public string? Headline { get; set; }
 
-    [Required]
-    [StringLength(4000, MinimumLength = 5)]
-    public string Content { get; set; } = null!;
+    public string? Content { get; set; }
+
+    public string? Text { get; set; }
 
     public string? AuthorUserId { get; set; }
 
@@ -53,6 +51,9 @@ public class UpdateReviewRequest
 
     [StringLength(4000, MinimumLength = 5)]
     public string? Content { get; set; }
+
+    [StringLength(4000, MinimumLength = 5)]
+    public string? Text { get; set; }
 }
 
 public class AddCommentRequest
@@ -61,7 +62,7 @@ public class AddCommentRequest
     [StringLength(100, MinimumLength = 2)]
     public string AuthorName { get; set; } = null!;
 
-    [Required]
-    [StringLength(1000, MinimumLength = 2)]
-    public string CommentText { get; set; } = null!;
+    public string? CommentText { get; set; }
+
+    public string? Text { get; set; }
 }

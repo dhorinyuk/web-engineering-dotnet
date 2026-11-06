@@ -10,7 +10,6 @@ public class ReviewProfile : Profile
 {
     public ReviewProfile()
     {
-        // Custom type converter for ObjectId <-> string (Criterion 12)
         CreateMap<ObjectId, string>().ConvertUsing(oid => oid.ToString());
         CreateMap<string, ObjectId>().ConvertUsing(str => ObjectId.Parse(str));
 
@@ -18,9 +17,8 @@ public class ReviewProfile : Profile
         CreateMap<Comment, CommentDto>();
 
         CreateMap<Review, ReviewDto>()
-            .ForMember(d => d.Id, opt => opt.MapFrom(s => s.Id.ToString()))
-            .ForMember(d => d.DiscussionId, opt => opt.MapFrom(s => s.DiscussionId.HasValue ? s.DiscussionId.Value.ToString() : null))
-            .ForMember(d => d.Comments, opt => opt.MapFrom(s => s.Comments))
-            .ForMember(d => d.Photos, opt => opt.MapFrom(s => s.Photos));
+            .ForMember(d => d.Id, o => o.MapFrom(s => s.Id.ToString()))
+            .ForMember(d => d.AuthorName, o => o.MapFrom(s => s.Author.DisplayName))
+            .ForMember(d => d.CommentsCount, o => o.MapFrom(s => s.Comments.Count));
     }
 }

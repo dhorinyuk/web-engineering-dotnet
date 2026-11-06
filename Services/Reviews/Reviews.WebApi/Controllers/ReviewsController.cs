@@ -70,12 +70,15 @@ public class ReviewsController : ControllerBase
         [FromBody] CreateReviewRequest request,
         CancellationToken ct)
     {
+        var text = !string.IsNullOrWhiteSpace(request.Text)
+            ? request.Text
+            : (!string.IsNullOrWhiteSpace(request.Content) ? request.Content : (request.Headline ?? ""));
+
         var command = new CreateReviewCommand(
             request.ProductId,
             request.ProductName,
             request.Rating,
-            request.Headline,
-            request.Content,
+            text,
             request.AuthorUserId,
             request.AuthorName,
             request.AuthorEmail,
@@ -102,7 +105,11 @@ public class ReviewsController : ControllerBase
         [FromBody] UpdateReviewRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateReviewCommand(id, request.Rating, request.Headline, request.Content);
+        var text = !string.IsNullOrWhiteSpace(request.Text)
+            ? request.Text
+            : (!string.IsNullOrWhiteSpace(request.Content) ? request.Content : request.Headline);
+
+        var command = new UpdateReviewCommand(id, request.Rating, text);
         await _mediator.Send(command, ct);
         return NoContent();
     }
@@ -132,7 +139,8 @@ public class ReviewsController : ControllerBase
         [FromBody] AddCommentRequest request,
         CancellationToken ct)
     {
-        var command = new AddCommentCommand(id, request.AuthorName, request.CommentText);
+        var text = !string.IsNullOrWhiteSpace(request.Text) ? request.Text : (request.CommentText ?? "");
+        var command = new AddCommentCommand(id, request.AuthorName, text);
         var comment = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetById), new { id }, comment);
     }

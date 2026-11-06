@@ -7,12 +7,10 @@ namespace Reviews.Application.Common.Behaviors;
 public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly Stopwatch _timer;
     private readonly ILogger<PerformanceBehavior<TRequest, TResponse>> _logger;
 
     public PerformanceBehavior(ILogger<PerformanceBehavior<TRequest, TResponse>> logger)
     {
-        _timer = new Stopwatch();
         _logger = logger;
     }
 
@@ -21,22 +19,15 @@ public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        _timer.Restart();
+        var sw = Stopwatch.StartNew();
 
         var response = await next();
 
-        _timer.Stop();
+        sw.Stop();
 
-        var elapsedMilliseconds = _timer.ElapsedMilliseconds;
-
-        if (elapsedMilliseconds > 500)
+        if (sw.ElapsedMilliseconds > 500)
         {
-            var requestName = typeof(TRequest).Name;
-
-            _logger.LogWarning(
-                "Long running request: {Name} ({ElapsedMilliseconds} ms)",
-                requestName,
-                elapsedMilliseconds);
+            _logger.LogWarning("Slow request {Request}: {Elapsed} ms", typeof(TRequest).Name, sw.ElapsedMilliseconds);
         }
 
         return response;

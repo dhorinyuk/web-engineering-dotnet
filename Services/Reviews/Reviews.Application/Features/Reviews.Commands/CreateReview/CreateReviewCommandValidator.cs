@@ -22,13 +22,9 @@ public class CreateReviewCommandValidator : AbstractValidator<CreateReviewComman
         RuleFor(x => x.Rating)
             .InclusiveBetween(1, 5).WithMessage("Rating must be between 1 and 5.");
 
-        RuleFor(x => x.Headline)
-            .NotEmpty().WithMessage("Headline is required.")
-            .Length(3, 200).WithMessage("Headline must be between 3 and 200 characters.");
-
-        RuleFor(x => x.Content)
-            .NotEmpty().WithMessage("Content is required.")
-            .Length(5, 4000).WithMessage("Content must be between 5 and 4000 characters.");
+        RuleFor(x => x.Text)
+            .NotEmpty().WithMessage("Text is required.")
+            .Length(5, 4000).WithMessage("Text must be between 5 and 4000 characters.");
 
         RuleFor(x => x.AuthorName)
             .NotEmpty().WithMessage("AuthorName is required.")

@@ -7,6 +7,7 @@ public class Author : ValueObject
 {
     public string? UserId { get; }
     public string Name { get; }
+    public string DisplayName => Name;
     public string Email { get; }
     public bool IsVerifiedBuyer { get; }
 

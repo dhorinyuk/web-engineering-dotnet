@@ -10,11 +10,11 @@ namespace Reviews.Infrastructure.Queries;
 
 public class ReviewQueries : IReviewQueries
 {
-    private readonly IMongoCollection<Review> _collection;
+    private readonly IMongoCollection<Review> _reviews;
 
     public ReviewQueries(MongoDbContext context)
     {
-        _collection = context.Reviews;
+        _reviews = context.Reviews;
     }
 
     public async Task<ReviewDto?> GetByIdAsync(string id, CancellationToken ct = default)
@@ -22,14 +22,23 @@ public class ReviewQueries : IReviewQueries
         if (!ObjectId.TryParse(id, out var objectId))
             return null;
 
-        var review = await _collection
-            .Find(r => r.Id == objectId)
-            .FirstOrDefaultAsync(ct);
+        var projection = Builders<Review>.Projection.Expression(r => new ReviewDto(
+            r.Id.ToString(),
+            r.ProductId,
+            r.ProductName,
+            r.Author.DisplayName,
+            r.Rating,
+            r.Text,
+            r.Comments.Count,
+            r.Version
+        ));
 
-        return review == null ? null : MapToDto(review);
+        return await _reviews
+            .Find(r => r.Id == objectId)
+            .Project(projection)
+            .FirstOrDefaultAsync(ct);
     }
 
-    // Criterion 6 & 11: MongoDB driver pagination ($match, $skip, $limit) and projection to DTO
     public async Task<PagedResult<ReviewDto>> GetListAsync(
         long? productId,
         int page,
@@ -40,45 +49,25 @@ public class ReviewQueries : IReviewQueries
             ? Builders<Review>.Filter.Eq(r => r.ProductId, productId.Value)
             : Builders<Review>.Filter.Empty;
 
-        var totalCount = (int)await _collection.CountDocumentsAsync(filter, cancellationToken: ct);
+        var totalCount = (int)await _reviews.CountDocumentsAsync(filter, cancellationToken: ct);
 
-        var skip = (page - 1) * pageSize;
+        var projection = Builders<Review>.Projection.Expression(r => new ReviewDto(
+            r.Id.ToString(),
+            r.ProductId,
+            r.ProductName,
+            r.Author.DisplayName,
+            r.Rating,
+            r.Text,
+            r.Comments.Count,
+            r.Version
+        ));
 
-        var items = await _collection
-            .Find(filter)
-            .SortByDescending(r => r.CreatedAt)
-            .Skip(skip)
+        var items = await _reviews.Find(filter)
+            .Project(projection)
+            .Skip((page - 1) * pageSize)
             .Limit(pageSize)
             .ToListAsync(ct);
 
-        var dtos = items.Select(MapToDto).ToList();
-
-        return new PagedResult<ReviewDto>(dtos, totalCount, page, pageSize);
-    }
-
-    private static ReviewDto MapToDto(Review review)
-    {
-        return new ReviewDto(
-            Id: review.Id.ToString(),
-            ProductId: review.ProductId,
-            ProductName: review.ProductName,
-            Rating: review.Rating,
-            Headline: review.Headline,
-            Content: review.Content,
-            Author: new AuthorDto(
-                review.Author.UserId,
-                review.Author.Name,
-                review.Author.Email,
-                review.Author.IsVerifiedBuyer),
-            DiscussionId: review.DiscussionId?.ToString(),
-            Comments: review.Comments.Select(c => new CommentDto(
-                c.CommentId,
-                c.AuthorName,
-                c.CommentText,
-                c.CreatedAt)).ToList(),
-            Photos: review.Photos.ToList(),
-            CreatedAt: review.CreatedAt,
-            UpdatedAt: review.UpdatedAt,
-            Version: review.Version);
+        return new PagedResult<ReviewDto>(items, totalCount, page, pageSize);
     }
 }

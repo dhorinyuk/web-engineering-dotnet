@@ -9,8 +9,16 @@ namespace Reviews.Application.Features.Reviews.Commands.UpdateReview;
 public record UpdateReviewCommand(
     string Id,
     int Rating,
-    string? Headline = null,
-    string? Content = null) : ICommand;
+    string? Text = null) : ICommand
+{
+    public string? Headline => Text;
+    public string? Content => Text;
+
+    public UpdateReviewCommand(string id, int rating, string? headline, string? content)
+        : this(id, rating, content ?? headline)
+    {
+    }
+}
 
 public class UpdateReviewCommandHandler : IRequestHandler<UpdateReviewCommand>
 {
@@ -30,7 +38,7 @@ public class UpdateReviewCommandHandler : IRequestHandler<UpdateReviewCommand>
         if (review == null)
             throw new EntityNotFoundException("Review", request.Id);
 
-        review.UpdateRating(request.Rating, request.Headline, request.Content);
+        review.UpdateRating(request.Rating, request.Text);
 
         await _repository.UpdateAsync(review, cancellationToken);
     }

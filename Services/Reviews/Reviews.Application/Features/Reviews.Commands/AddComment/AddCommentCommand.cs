@@ -11,7 +11,10 @@ namespace Reviews.Application.Features.Reviews.Commands.AddComment;
 public record AddCommentCommand(
     string ReviewId,
     string AuthorName,
-    string CommentText) : ICommand<CommentDto>;
+    string CommentText) : ICommand<CommentDto>
+{
+    public string Text => CommentText;
+}
 
 public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, CommentDto>
 {

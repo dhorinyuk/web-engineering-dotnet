@@ -11,15 +11,18 @@ public class Review : BaseEntity
     private readonly List<string> _photos = new();
 
     public long ProductId { get; private set; }
-    public string ProductName { get; private set; } = null!;
-    public int Rating { get; private set; }
-    public string Headline { get; private set; } = null!;
-    public string Content { get; private set; } = null!;
+    public string ProductName { get; private set; } = "";
     public Author Author { get; private set; } = null!;
+    public int Rating { get; private set; }
+    public string Text { get; private set; } = "";
+    public IReadOnlyCollection<Comment> Comments => _comments.AsReadOnly();
+
+    public IReadOnlyCollection<string> Photos => _photos.AsReadOnly();
     public ObjectId? DiscussionId { get; private set; }
 
-    public IReadOnlyCollection<Comment> Comments => _comments.AsReadOnly();
-    public IReadOnlyCollection<string> Photos => _photos.AsReadOnly();
+    // Backward-compatibility properties for MongoMappings / IndexCreationService / Seeder
+    public string Headline { get; private set; } = "";
+    public string Content { get; private set; } = "";
 
     // Private constructor for MongoDB BSON deserialization
     private Review()
@@ -29,21 +32,21 @@ public class Review : BaseEntity
     public Review(
         long productId,
         string productName,
-        int rating,
-        string headline,
-        string content,
         Author author,
+        int rating,
+        string text,
         ObjectId? discussionId = null,
         IEnumerable<string>? photos = null)
     {
-        ValidateInvariants(productId, productName, rating, headline, content, author);
+        ValidateInvariants(productId, productName, rating, text, author);
 
         ProductId = productId;
         ProductName = productName.Trim();
-        Rating = rating;
-        Headline = headline.Trim();
-        Content = content.Trim();
         Author = author;
+        Rating = rating;
+        Text = text.Trim();
+        Content = Text;
+        Headline = Text.Length > 50 ? Text[..50] : Text;
         DiscussionId = discussionId;
 
         if (photos != null)
@@ -56,33 +59,72 @@ public class Review : BaseEntity
         }
     }
 
-    public void UpdateRating(int newRating, string? newHeadline = null, string? newContent = null)
+    public Review(
+        long productId,
+        string productName,
+        int rating,
+        string text,
+        Author author,
+        ObjectId? discussionId = null,
+        IEnumerable<string>? photos = null)
+        : this(productId, productName, author, rating, text, discussionId, photos)
+    {
+    }
+
+    public Review(
+        long productId,
+        string productName,
+        int rating,
+        string headline,
+        string content,
+        Author author,
+        ObjectId? discussionId = null,
+        IEnumerable<string>? photos = null)
+        : this(productId, productName, author, rating, !string.IsNullOrWhiteSpace(content) ? content : (headline ?? ""), discussionId, photos)
+    {
+        Headline = headline?.Trim() ?? "";
+        Content = content?.Trim() ?? "";
+    }
+
+    public void UpdateRating(int newRating, string? newText = null)
     {
         if (newRating is < 1 or > 5)
             throw new DomainException($"Rating must be between 1 and 5. Provided: {newRating}");
 
         Rating = newRating;
 
-        if (!string.IsNullOrWhiteSpace(newHeadline))
+        if (!string.IsNullOrWhiteSpace(newText))
         {
-            if (newHeadline.Trim().Length is < 3 or > 200)
-                throw new DomainException("Headline must be between 3 and 200 characters.");
-            Headline = newHeadline.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(newContent))
-        {
-            if (newContent.Trim().Length is < 5 or > 4000)
-                throw new DomainException("Review content must be between 5 and 4000 characters.");
-            Content = newContent.Trim();
+            if (newText.Trim().Length is < 5 or > 4000)
+                throw new DomainException("Review text must be between 5 and 4000 characters.");
+            Text = newText.Trim();
+            Content = Text;
+            Headline = Text.Length > 50 ? Text[..50] : Text;
         }
 
         Touch();
     }
 
-    public Comment AddComment(string authorName, string commentText)
+    public void UpdateRating(int newRating, string? newHeadline, string? newContent)
     {
-        var comment = new Comment(authorName, commentText);
+        UpdateRating(newRating, newContent ?? newHeadline);
+        if (!string.IsNullOrWhiteSpace(newHeadline))
+        {
+            Headline = newHeadline.Trim();
+        }
+    }
+
+    public Comment AddComment(Author author, string text)
+    {
+        var comment = new Comment(author, text);
+        _comments.Add(comment);
+        Touch();
+        return comment;
+    }
+
+    public Comment AddComment(string authorName, string text)
+    {
+        var comment = new Comment(authorName, text);
         _comments.Add(comment);
         Touch();
         return comment;
@@ -93,7 +135,10 @@ public class Review : BaseEntity
         if (string.IsNullOrWhiteSpace(commentId))
             throw new DomainException("Comment identifier cannot be empty.");
 
-        var existing = _comments.FirstOrDefault(c => c.CommentId.Equals(commentId, StringComparison.OrdinalIgnoreCase));
+        var existing = _comments.FirstOrDefault(c =>
+            c.Id.ToString().Equals(commentId, StringComparison.OrdinalIgnoreCase) ||
+            c.CommentId.Equals(commentId, StringComparison.OrdinalIgnoreCase));
+
         if (existing == null)
             throw new DomainException($"Comment with identifier '{commentId}' does not exist on this review.");
 
@@ -124,8 +169,7 @@ public class Review : BaseEntity
         long productId,
         string productName,
         int rating,
-        string headline,
-        string content,
+        string text,
         Author author)
     {
         if (productId <= 0)
@@ -140,17 +184,11 @@ public class Review : BaseEntity
         if (rating is < 1 or > 5)
             throw new DomainException($"Rating must be between 1 and 5. Provided: {rating}");
 
-        if (string.IsNullOrWhiteSpace(headline))
-            throw new DomainException("Review headline cannot be empty.");
+        if (string.IsNullOrWhiteSpace(text))
+            throw new DomainException("Review text cannot be empty.");
 
-        if (headline.Trim().Length is < 3 or > 200)
-            throw new DomainException("Review headline must be between 3 and 200 characters.");
-
-        if (string.IsNullOrWhiteSpace(content))
-            throw new DomainException("Review content cannot be empty.");
-
-        if (content.Trim().Length is < 5 or > 4000)
-            throw new DomainException("Review content must be between 5 and 4000 characters.");
+        if (text.Trim().Length is < 5 or > 4000)
+            throw new DomainException("Review text must be between 5 and 4000 characters.");
 
         if (author == null)
             throw new DomainException("Review author cannot be null.");
