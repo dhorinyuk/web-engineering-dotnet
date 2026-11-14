@@ -1,3 +1,4 @@
+using Platform.ServiceDefaults;
 using Reviews.Application;
 using Reviews.Infrastructure;
 using Reviews.Infrastructure.Services;
@@ -7,12 +8,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Serilog configuration with structured properties (Criterion 13)
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console());
+// Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
+builder.AddServiceDefaults();
 
 // Criterion 7: Clean Architecture layers registration via extension methods
 builder.Services
@@ -40,6 +37,12 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Service defaults endpoints (/health, /alive)
+app.MapDefaultEndpoints();
+
+// Correlation ID middleware
+app.UseCorrelationId();
 
 // Pipeline configuration
 app.UseExceptionHandler();

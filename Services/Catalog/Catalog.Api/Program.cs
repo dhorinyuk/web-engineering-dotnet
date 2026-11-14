@@ -5,18 +5,14 @@ using Catalog.Bll.Validators;
 using Catalog.Dal;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Platform.ServiceDefaults;
 using Serilog;
 using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Criterion 13: Serilog configuration with structured properties & EF Command logging override
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Information)
-    .WriteTo.Console());
+// Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
+builder.AddServiceDefaults();
 
 // Database Context registration
 var connectionString = builder.Configuration.GetConnectionString("CatalogDb")
@@ -36,10 +32,9 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 
-// Criterion 7: AutoMapper registration (with cfg.LicenseKey consideration: not present in AutoMapper 13.x OSS)
+// Criterion 7: AutoMapper registration
 builder.Services.AddAutoMapper(cfg =>
 {
-    // cfg.LicenseKey is only applicable in commercial/v14+ distributions
 }, typeof(CatalogMappingProfile));
 
 // Criterion 11: FluentValidation registration
@@ -63,6 +58,12 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Service defaults endpoints (/health, /alive)
+app.MapDefaultEndpoints();
+
+// Correlation ID middleware
+app.UseCorrelationId();
 
 // Pipeline configuration
 app.UseExceptionHandler();

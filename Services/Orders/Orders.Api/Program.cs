@@ -6,16 +6,13 @@ using Orders.Api.Middleware;
 using Orders.Bll.Mapping;
 using Orders.Bll.Services;
 using Orders.Dal;
+using Platform.ServiceDefaults;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Serilog Setup
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console());
+// Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
+builder.AddServiceDefaults();
 
 // 2. Database Connection & Unit of Work (Scoped)
 var connectionString = builder.Configuration.GetConnectionString("OrdersDb")
@@ -42,6 +39,12 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Service defaults endpoints (/health, /alive)
+app.MapDefaultEndpoints();
+
+// Correlation ID middleware
+app.UseCorrelationId();
 
 // 7. HTTP Request Pipeline
 app.UseExceptionHandler();
