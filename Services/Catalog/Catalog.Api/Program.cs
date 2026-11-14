@@ -20,7 +20,10 @@ builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
 builder.AddRedisDistributedCache("redis");
 
 // gRPC Services & HTTP/2 Configuration
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(o =>
+{
+    o.Interceptors.Add<Platform.ServiceDefaults.Grpc.LoggingInterceptor>();
+});
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);

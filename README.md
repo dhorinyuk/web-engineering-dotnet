@@ -987,3 +987,31 @@ curl -i -X GET "http://localhost:5000/api/aggregator/products/1" \
 }
 ```
 Client application receives the product data uninterrupted, while warnings highlight the degraded components.
+
+---
+
+## Lab 06: gRPC Communication and Distributed Caching
+
+### 1. Architectural Highlights
+- **Infrastructure & Redis**:
+  - Redis 7 container orchestrated via .NET Aspire (`builder.AddRedis("redis").WithDataVolume()`) with persistent storage.
+  - Linked to `orders-api`, `catalog-api`, `reviews-api`, and `aggregator` via `.WithReference(redis).WaitFor(redis)`.
+- **Two-Tier Caching Strategy (L1 + L2)**:
+  - **L1 (Local Memory Cache)**: `IMemoryCache` registered with `SizeLimit = 10_000`, item `Size = 1`, `SlidingExpiration` (2 min), and `AbsoluteExpirationRelativeToNow` (5 min).
+  - **L2 (Distributed Cache)**: `IDistributedCache` connected to Redis via Aspire StackExchange Redis integration (`builder.AddRedisDistributedCache("redis")`) with 30 min absolute expiration.
+  - **Cache-aside Flow**: L1 Cache -> L2 Redis -> Database -> populate L2 and L1 on return path.
+  - **Synchronous Invalidation**: Immediate `Remove` on mutations (POST/PUT/DELETE) with structured reason logging.
+- **Protocol Buffers & gRPC Services**:
+  - `Protos/catalog.proto`, `Protos/orders.proto`, `Protos/reviews.proto` contract definitions with `proto3` syntax and explicit C# namespaces.
+  - Microservices implement gRPC server adapters inheriting generated base classes (`CatalogServiceBase`, `OrdersServiceBase`, `ReviewsServiceBase`).
+  - Robust exception translation: domain exceptions mapped to appropriate gRPC status codes (`StatusCode.NotFound`, `StatusCode.InvalidArgument`, `StatusCode.AlreadyExists`).
+  - Kestrel configured for HTTP/1.1 and HTTP/2 protocol negotiation.
+- **Aggregator gRPC Client Migration**:
+  - Aggregator uses typed gRPC clients (`CatalogServiceClient`, `OrdersServiceClient`, `ReviewsServiceClient`) with Service Discovery addresses (`https://catalog-api`, etc.).
+  - Non-blocking parallel execution with `Task.WhenAll` and `CancellationToken`.
+  - Resilient `SafeGrpcAsync` exception handling for `RpcException` (`Unavailable`, `DeadlineExceeded`).
+  - Aggregated read model caching in Redis with short TTL (30–60 s) checked before making gRPC calls.
+- **Observability & Interceptors**:
+  - `LoggingInterceptor` captures gRPC method, peer, status code, and duration with structured logging.
+  - `ClientCorrelationInterceptor` and `CorrelationIdHandler` propagate `X-Correlation-Id` across gRPC metadata.
+  - `CacheMetrics` captures `cache.hits` and `cache.misses` counters with `cache.level` tags (L1/L2) under the `"Catalog.Cache"` meter registered in `Platform.ServiceDefaults`.

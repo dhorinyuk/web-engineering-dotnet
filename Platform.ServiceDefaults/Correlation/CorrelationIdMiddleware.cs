@@ -24,6 +24,11 @@ public class CorrelationIdMiddleware
         {
             correlationId = headerValues.First()!;
         }
+        else if (context.Request.Headers.TryGetValue("x-correlation-id", out var grpcHeaderValues) &&
+                 !string.IsNullOrWhiteSpace(grpcHeaderValues.FirstOrDefault()))
+        {
+            correlationId = grpcHeaderValues.First()!;
+        }
         else
         {
             correlationId = Guid.NewGuid().ToString("D");

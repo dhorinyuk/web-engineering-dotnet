@@ -11,6 +11,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Platform.ServiceDefaults.Caching;
 using Platform.ServiceDefaults.Correlation;
+using Platform.ServiceDefaults.Grpc;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -37,6 +38,10 @@ public static class Extensions
         // Caching infrastructure registration
         builder.Services.AddSingleton<CacheMetrics>();
         builder.Services.AddSingleton<ITwoTierCacheService, TwoTierCacheService>();
+
+        // gRPC Interceptors registration
+        builder.Services.AddSingleton<LoggingInterceptor>();
+        builder.Services.AddTransient<ClientCorrelationInterceptor>();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {

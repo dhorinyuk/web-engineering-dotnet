@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Orders.Api.Grpc;
 using Platform.Aggregator.Clients;
 using Platform.ServiceDefaults;
+using Platform.ServiceDefaults.Grpc;
 using Reviews.WebApi.Grpc;
 using Serilog;
 
@@ -37,17 +38,17 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddGrpcClient<CatalogService.CatalogServiceClient>(o =>
 {
     o.Address = new Uri("https://catalog-api");
-});
+}).AddInterceptor<ClientCorrelationInterceptor>();
 
 builder.Services.AddGrpcClient<OrdersService.OrdersServiceClient>(o =>
 {
     o.Address = new Uri("https://orders-api");
-});
+}).AddInterceptor<ClientCorrelationInterceptor>();
 
 builder.Services.AddGrpcClient<ReviewsService.ReviewsServiceClient>(o =>
 {
     o.Address = new Uri("https://reviews-api");
-});
+}).AddInterceptor<ClientCorrelationInterceptor>();
 
 // Backward-compatible Typed HttpClients with Service Discovery
 builder.Services.AddHttpClient<CatalogClient>(client =>
