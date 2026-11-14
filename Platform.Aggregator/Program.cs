@@ -26,20 +26,20 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
 
-// 3. Typed HttpClients with Service Discovery (http://[service-name])
+// 3. Typed HttpClients with Service Discovery (https+http://[service-name])
 builder.Services.AddHttpClient<CatalogClient>(client =>
 {
-    client.BaseAddress = new Uri("http://catalog-api");
+    client.BaseAddress = new Uri("https+http://catalog-api");
 });
 
 builder.Services.AddHttpClient<ReviewsClient>(client =>
 {
-    client.BaseAddress = new Uri("http://reviews-api");
+    client.BaseAddress = new Uri("https+http://reviews-api");
 });
 
 builder.Services.AddHttpClient<OrdersClient>(client =>
 {
-    client.BaseAddress = new Uri("http://orders-api");
+    client.BaseAddress = new Uri("https+http://orders-api");
 });
 
 // 4. API Documentation

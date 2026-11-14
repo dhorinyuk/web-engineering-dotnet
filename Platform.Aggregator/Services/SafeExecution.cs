@@ -19,7 +19,7 @@ public static class SafeExecution
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Aggregator partial degradation: Call to service '{ServiceName}' failed: {Message}", serviceName, ex.Message);
-            return (default, $"Service '{serviceName}' is temporarily degraded or unavailable: {ex.Message}");
+            return (default, $"{serviceName} is unavailable: {ex.Message}");
         }
     }
 }

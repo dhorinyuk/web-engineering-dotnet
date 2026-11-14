@@ -70,6 +70,7 @@ public class AggregatorController : ControllerBase
     /// Aggregates order lifecycle data from Orders API and enhances items with live catalog and reviews projections.
     /// </summary>
     [HttpGet("orders/{id:long}")]
+    [HttpGet("orders/{id:long}/full")]
     [ProducesResponseType(typeof(OrderAggregateResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<OrderAggregateResponse>> GetOrderAggregate(long id, CancellationToken ct)
     {
