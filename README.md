@@ -273,6 +273,32 @@ products ||--|| reviews_summary : "aggregated reviews cache (1:1)"
 │           ├── Middleware/            # DomainExceptionHandler (IExceptionHandler -> RFC 7807 ProblemDetails)
 │           ├── Program.cs
 │           └── appsettings.json
+│   └── Reviews/                       # Lab 04: Clean Architecture MongoDB Microservice (CQRS + Mediator)
+│       ├── Reviews.Domain/            # BaseEntity, ValueObject, Review, Comment, Author, RatingScore
+│       │   ├── Common/                # BaseEntity, ValueObject
+│       │   ├── Entities/              # Review, Comment
+│       │   ├── Exceptions/            # DomainException, EntityNotFoundException, ConflictException
+│       │   ├── Repositories/          # IReviewRepository
+│       │   └── ValueObjects/          # Author, RatingScore
+│       ├── Reviews.Application/       # CQRS Commands/Queries, MediatR Behaviors, FluentValidation
+│       │   ├── Common/                # Behaviors (Logging, Validation, Performance), Interfaces (ICommand, IQuery, IReviewQueries)
+│       │   ├── DTOs/                  # ReviewDto, AuthorDto, CommentDto
+│       │   ├── Features/Reviews/      # Commands (Create, Update, Delete, AddComment), Queries (GetById, GetList)
+│       │   └── DependencyInjection.cs
+│       ├── Reviews.Infrastructure/    # MongoDB Driver, BsonClassMap, Repositories, Seeder, Indexes
+│       │   ├── Configuration/         # MongoDbOptions
+│       │   ├── Persistence/           # MongoDbContext, MongoMappings (Class Maps & Conventions)
+│       │   ├── Queries/               # ReviewQueries (MongoDB Driver aggregation/pagination)
+│       │   ├── Repositories/          # ReviewRepository (Optimistic concurrency with Version)
+│       │   ├── Services/              # ReviewSeeder, IndexCreationService (Background indexer)
+│       │   └── DependencyInjection.cs
+│       └── Reviews.WebApi/            # ASP.NET Core Web API (Thin controller with ISender, ProblemDetails)
+│           ├── Controllers/           # ReviewsController
+│           ├── Middleware/            # ReviewsExceptionHandler (MongoDB exception mapping)
+│           ├── Mapping/               # ReviewProfile (AutoMapper)
+│           ├── Models/Requests/       # CreateReviewRequest, UpdateReviewRequest, AddCommentRequest
+│           ├── Program.cs
+│           └── appsettings.json
 ├── docs/
 │   ├── contexts.md
 │   ├── duplication-policy.md
@@ -529,6 +555,139 @@ curl -X PATCH "http://localhost:5000/api/products/1/stock" \
 - **404 Not Found:** `GET /api/products/9999` returns `404 Not Found` with `EntityNotFoundException` mapped to ProblemDetails.
 - **409 Conflict:** Creating a product with duplicate SKU returns `409 Conflict` with `ConflictException`.
 - **400 Validation Problem:** Passing negative price or empty name returns `400 Bad Request` with `ValidationProblemDetails` containing field-level errors.
+
+---
+
+## Laboratory Work #4: Clean Architecture on MongoDB, CQRS & Mediator
+
+### 1. Architecture Design and Layer Responsibilities
+
+The Reviews Service is engineered strictly according to the Clean Architecture principles, CQRS pattern, and MediatR pipeline behaviors across 4 isolated projects:
+
+```
+[ HTTP Client / Swagger / Aspire ]
+                |
+                v
+       Reviews.WebApi (Presentation)
+  - Thin API Controller (ReviewsController) injecting ONLY ISender
+  - Standard HTTP responses (200, 201 CreatedAtAction, 204, 400, 404, 409, 503)
+  - ETag concurrency response header on GET /api/reviews/{id}
+  - AutoMapper ReviewProfile for ObjectId <-> string conversion
+  - Global ProblemDetails Exception Handler (ReviewsExceptionHandler: IExceptionHandler)
+                |
+                v
+       Reviews.Application (Application Core)
+  - CQRS Commands (CreateReview, UpdateReview, DeleteReview, AddComment) & Handlers
+  - CQRS Queries (GetReviewById, GetReviewsList) & Handlers calling IReviewQueries
+  - MediatR Pipeline Behaviors ordered strictly:
+      1. LoggingBehavior (outer request/response logging)
+      2. ValidationBehavior (FluentValidation validator execution before handler)
+      3. PerformanceBehavior (Stopwatch > 500ms warning threshold)
+  - FluentValidation rules with asynchronous MustAsync uniqueness checks
+                |
+                v
+       Reviews.Infrastructure (Persistence & External Services)
+  - MongoDB C# Driver integration via MongoDbContext & MongoDbOptions
+  - Class Maps & Conventions configuration (MongoMappings.Register: zero BSON attributes in Domain)
+  - ReviewRepository implementing optimistic concurrency via Version field
+  - ReviewQueries implementing native driver aggregation, sorting, and pagination ($match, $skip, $limit)
+  - Background indexer (IndexCreationService: compound, text, and unique sparse indexes)
+  - Idempotent database seeder (ReviewSeeder)
+                |
+                v
+       Reviews.Domain (Enterprise Domain Core)
+  - BaseEntity (ObjectId Id, CreatedAt, UpdatedAt, Version, Touch, BumpVersion)
+  - Aggregate Root Review with encapsulated invariants and domain methods
+  - Entity Comment with private constructors and business encapsulation
+  - Base class ValueObject with GetEqualityComponents()
+  - Immutable Value Objects: Author, RatingScore
+  - Repository abstraction: IReviewRepository (no MongoDB Driver dependencies)
+```
+
+### 2. How to Run Reviews Service
+
+#### Option A: Run via .NET Aspire AppHost
+
+```powershell
+dotnet run --project Platform.AppHost
+```
+
+#### Option B: Run Reviews.WebApi Directly
+
+```powershell
+dotnet run --project Services/Reviews/Reviews.WebApi
+```
+
+Swagger UI will be available at: `http://localhost:5000/swagger` (or configured port).
+
+---
+
+### 3. API Verification with cURL
+
+#### 1. Retrieve Paginated Reviews List with Product Filter (200 OK)
+```bash
+curl -X GET "http://localhost:5000/api/reviews?productId=1&page=1&pageSize=10" \
+     -H "Accept: application/json"
+```
+
+#### 2. Retrieve Single Review by ObjectId with ETag Header (200 OK)
+```bash
+curl -i -X GET "http://localhost:5000/api/reviews/66f00101a1b2c3d4e5f60002" \
+     -H "Accept: application/json"
+```
+
+#### 3. Create a New Review (201 Created with Location Header)
+```bash
+curl -X POST "http://localhost:5000/api/reviews" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "productId": 1,
+       "productName": "Моторна олива Motul 8100 X-cess Gen2 5W-40 5л",
+       "rating": 5,
+       "headline": "Відмінна якість та стабільний тиск",
+       "content": "Використовую цю оливу вже третій сезон на дизельному авто. Сажовий фільтр чистий, двигун працює тихо.",
+       "authorUserId": "E5B26E83-9FA3-4D9A-8C21-998877660099",
+       "authorName": "Тарас Григорович",
+       "authorEmail": "taras.hryhorovych@example.com",
+       "isVerifiedBuyer": true,
+       "photos": [
+         "https://cdn.autoparts.ua/reviews/motul_bottle.jpg"
+       ]
+     }'
+```
+
+#### 4. Add a Comment to an Existing Review (201 Created)
+```bash
+curl -X POST "http://localhost:5000/api/reviews/66f00101a1b2c3d4e5f60002/comments" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "authorName": "AutoParts Support",
+       "commentText": "Дякуємо за ваш розгорнутий відгук! Раді, що ви задоволені продукцією."
+     }'
+```
+
+#### 5. Update Review with Optimistic Concurrency (204 No Content)
+```bash
+curl -X PUT "http://localhost:5000/api/reviews/66f00101a1b2c3d4e5f60002" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "rating": 4,
+       "headline": "Оновлений відгук після 10000 км",
+       "content": "Олива відпрацювала гідно, хоча під кінець інтервалу трохи потемнішала."
+     }'
+```
+
+#### 6. Delete Review (204 No Content)
+```bash
+curl -X DELETE "http://localhost:5000/api/reviews/66f00101a1b2c3d4e5f60002" \
+     -H "Accept: application/json"
+```
+
+#### 7. Verification of Error Handling (RFC 7807 ProblemDetails)
+- **404 Not Found:** `GET /api/reviews/66f00101a1b2c3d4e5f69999` returns `404 Not Found` with RFC 7807 ProblemDetails.
+- **400 Validation Error:** Submitting invalid rating (< 1 or > 5) or malformed ObjectId triggers `ValidationBehavior` and returns `400 Bad Request` with `ValidationProblemDetails`.
+- **409 Conflict:** Submitting a duplicate review from the same author for the same product triggers `MustAsync` unique rule and returns `409 Conflict` (or Mongo duplicate key error). Concurrent modification conflict returns `409 Conflict`.
+- **503 Service Unavailable:** Network disconnection from MongoDB cluster triggers `MongoConnectionException` and returns `503 Service Unavailable`.
 
 ---
 
