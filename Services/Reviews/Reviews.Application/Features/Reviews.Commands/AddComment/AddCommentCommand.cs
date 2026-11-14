@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using Reviews.Application.Common.Interfaces;
 using Reviews.Application.DTOs;
@@ -18,15 +20,21 @@ public record AddCommentCommand(
 
 public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, CommentDto>
 {
+    private static readonly ActivitySource ActivitySource = new("Reviews.WebApi");
     private readonly IReviewRepository _repository;
+    private readonly ILogger<AddCommentCommandHandler>? _logger;
 
-    public AddCommentCommandHandler(IReviewRepository repository)
+    public AddCommentCommandHandler(IReviewRepository repository, ILogger<AddCommentCommandHandler>? logger = null)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<CommentDto> Handle(AddCommentCommand request, CancellationToken cancellationToken)
     {
+        using var activity = ActivitySource.StartActivity("AddCommentBusinessLogic");
+        activity?.SetTag("review.id", request.ReviewId);
+
         if (!ObjectId.TryParse(request.ReviewId, out var objectId))
             throw new EntityNotFoundException("Review", request.ReviewId);
 
@@ -37,6 +45,7 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Comme
         var comment = review.AddComment(request.AuthorName, request.CommentText);
 
         await _repository.UpdateAsync(review, cancellationToken);
+        _logger?.LogInformation("Comment {CommentId} added to review {ReviewId} by {AuthorName}", comment.CommentId, request.ReviewId, request.AuthorName);
 
         return new CommentDto(
             comment.CommentId,

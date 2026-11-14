@@ -784,3 +784,206 @@ db.reviews.find({ productId: 1 }).pretty();
 // Query minimal review document
 db.reviews.find({ productId: 2 }).pretty();
 ```
+
+
+---
+
+## Lab 5: API Gateway & Aggregator Platform
+
+### 1. Architecture Design and System Topology
+
+The platform integrates all previous bounded contexts into an enterprise distributed microservices architecture coordinated by **.NET Aspire 9**:
+
+- **YARP API Gateway Base Address:** `http://localhost:5000`
+- **Aspire Dashboard:** `http://localhost:15xxx` / `https://localhost:17xxx`
+
+```
+                                  [ HTTP Client / Browser ]
+                                              │
+                                              ▼ (Port 5000)
+                                ┌───────────────────────────┐
+                                │    Platform.ApiGateway    │
+                                │   (YARP Reverse Proxy)    │
+                                └───────────────────────────┘
+                                 /       │          │       \
+                                /        │          │        \
+                               /         │          │         \
+                              ▼          │          │          ▼
+     ┌───────────────────────┐           │          │    ┌───────────────────┐
+     │  Platform.Aggregator  │           │          │    │  Reviews.WebApi   │
+     │    (Composite BFF)    │           │          │    │   (MongoDB+CQRS)  │
+     └───────────────────────┘           │          │    └───────────────────┘
+            │          │                 │          │              │
+            │          │                 ▼          ▼              │
+            │          │         ┌───────────┐ ┌───────────┐       │
+            │          └────────►│ Orders.Api│ │Catalog.Api│◄──────┤
+            │                    └───────────┘ └───────────┘       │
+            │                          │             │             │
+            └──────────────────────────┼─────────────┼─────────────┘
+                                       ▼             ▼             ▼
+                                  [ OrdersDb ]  [ CatalogDb ] [ ReviewsDb ]
+                                  (SQL Server)  (SQL Server)   (MongoDB)
+```
+
+### 2. YARP Reverse Proxy Routing Table
+
+All external client traffic arrives at `http://localhost:5000` and is dynamically resolved via Aspire Service Discovery:
+
+| Route ID | Path Match Pattern | Target Cluster | Service Discovery Destination | Architectural Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| `aggregator-route` | `/api/aggregator/{**catch-all}` | `aggregator` | `http://aggregator` | Composite Aggregator / BFF queries |
+| `aggregate-route` | `/api/aggregate/{**catch-all}` | `aggregator` | `http://aggregator` | Composite Aggregator alias |
+| `orders-route` | `/api/orders/{**catch-all}` | `orders` | `http://orders-api` | Orders lifecycle & state transitions |
+| `catalog-products-route` | `/api/products/{**catch-all}` | `catalog` | `http://catalog-api` | Products catalog, pricing & stock |
+| `catalog-brands-route` | `/api/brands/{**catch-all}` | `catalog` | `http://catalog-api` | Brand manufacturers |
+| `catalog-categories-route` | `/api/categories/{**catch-all}` | `catalog` | `http://catalog-api` | Category taxonomy tree |
+| `reviews-route` | `/api/reviews/{**catch-all}` | `reviews` | `http://reviews-api` | Reviews & customer discussions |
+
+### 3. Architectural Pillars
+
+1. **Orchestration (`Platform.AppHost`)**:
+   - Built on **.NET Aspire 9** (`Aspire.Hosting.AppHost`, `Aspire.Hosting.SqlServer`, `Aspire.Hosting.MongoDB`).
+   - Containers for SQL Server (`OrdersDb`, `CatalogDb`) and MongoDB (`ReviewsDb`) configured with persistent storage (`.WithDataVolume()`).
+   - Strong password protection via Aspire secret parameters (`AddParameter("sql-password", secret: true)`).
+   - Deterministic sequential startup order:
+     $$\text{Databases} \xrightarrow{\text{WaitFor}} \text{Core Services} \xrightarrow{\text{WaitFor}} \text{Aggregator} \xrightarrow{\text{WaitFor}} \text{Gateway (Port 5000)}$$
+2. **Shared Foundation (`Platform.ServiceDefaults`)**:
+   - **Serilog Structured Logging**: Configured via `Serilog.AspNetCore` with enrichers (`ServiceName`, `Environment`, `MachineName`, `ThreadId`, `FromLogContext`), `CompactJsonFormatter` for console, dynamic minimum level (`Debug` in Development, `Information` in Production), overrides for EF Core and HttpClient (`Warning`), and **`writeToProviders: true`** ensuring logs flow into OpenTelemetry and populate the *Structured logs* view in Aspire Dashboard.
+   - **End-to-End Correlation ID**:
+     - `CorrelationIdMiddleware`: Extracts or creates `X-Correlation-Id` (GUID), assigns it to `ICorrelationIdProvider`, sets response header, and pushes into Serilog `LogContext`.
+     - `CorrelationIdHandler`: Outgoing `DelegatingHandler` automatically injecting `X-Correlation-Id` into downstream HTTP requests made via `HttpClient`.
+   - **OpenTelemetry Full-Stack Observability**: Custom `ActivitySource` in each microservice (`Orders.Api`, `Catalog.Api`, `Reviews.WebApi`, `Platform.Aggregator`), traces for ASP.NET Core requests, HTTP clients, SQL queries (via `OpenTelemetry.Instrumentation.SqlClient`), MongoDB driver commands (via `MongoDB.Driver.Core.Extensions.DiagnosticSources`), and OTLP export.
+   - **Health Checks & Service Discovery**: Standard `/health` and `/alive` probes with Microsoft Service Discovery.
+3. **API Gateway (`Platform.ApiGateway`)**:
+   - Reverse proxy based on **YARP (Yet Another Reverse Proxy)** on fixed port **`5000`**.
+   - Service discovery destination resolver (`http://orders-api`, `http://catalog-api`, `http://reviews-api`, `http://aggregator`).
+   - `CorrelationIdMiddleware` registered strictly before `MapReverseProxy()`.
+   - High-performance diagnostic routing logger capturing Method, Path, Route ID, Cluster ID, Status Code, and Latency.
+4. **Data Aggregator (`Platform.Aggregator`)**:
+   - Composite BFF providing aggregated read models.
+   - Strongly typed HTTP clients (`OrdersClient`, `CatalogClient`, `ReviewsClient`) utilizing dynamic service discovery scheme (`https+http://...`).
+   - Parallel query execution using non-blocking **`Task.WhenAll`** (zero blocking `.Result` / `Task.WaitAll`).
+   - Partial degradation resiliency (**`SafeAsync`** with `Stopwatch` latency measurement): if a microservice (e.g. `reviews-api`) is down or encounters an error, the aggregator logs the duration, returns all available data alongside detailed warnings in `Warnings` without failing with HTTP 500.
+   - Strict `camelCase` JSON serialization ignoring `null` values.
+
+---
+
+### 4. How to Run the Platform
+
+#### Launch via .NET Aspire AppHost
+
+```powershell
+dotnet run --project Platform.AppHost
+```
+
+The orchestrator will:
+1. Provision and start SQL Server and MongoDB containers with persistent volumes.
+2. Launch `orders-api`, `catalog-api`, `reviews-api`.
+3. Launch `aggregator` once core microservices are healthy.
+4. Launch `gateway` on `http://localhost:5000`.
+5. Open the **Aspire Developer Dashboard** in your browser (`http://localhost:15xxx` or `https://localhost:17xxx`).
+
+---
+
+### 5. Verification and cURL Examples via Gateway (Port 5000)
+
+#### 1. Direct Microservice Routing via Gateway
+
+* **Get Order by ID (HTTP 200 OK):**
+```bash
+curl -i -X GET "http://localhost:5000/api/orders/1" \
+     -H "Accept: application/json"
+```
+
+* **Get Catalog Products (HTTP 200 OK):**
+```bash
+curl -i -X GET "http://localhost:5000/api/products" \
+     -H "Accept: application/json"
+```
+
+* **Get Reviews by Product ID (HTTP 200 OK):**
+```bash
+curl -i -X GET "http://localhost:5000/api/reviews?productId=1" \
+     -H "Accept: application/json"
+```
+
+#### 2. Composite Aggregator Queries via Gateway
+
+* **Full Order Aggregate Card (Order + Live Products + Reviews) (HTTP 200 OK):**
+```bash
+curl -i -X GET "http://localhost:5000/api/aggregator/orders/1/full" \
+     -H "Accept: application/json"
+```
+*(Also accessible via `curl -i http://localhost:5000/api/aggregate/orders/1`)*
+
+* **Aggregate Product Overview (Catalog + Reviews in Parallel via `Task.WhenAll`) (HTTP 200 OK):**
+```bash
+curl -i -X GET "http://localhost:5000/api/aggregator/products/1" \
+     -H "Accept: application/json"
+```
+*Sample JSON Response:*
+```json
+{
+  "productId": 1,
+  "product": {
+    "id": 1,
+    "brandId": 1,
+    "brandName": "Motul",
+    "sku": "MOT-8100-X-CESS-5W40-5L",
+    "name": "Моторна олива Motul 8100 X-cess Gen2 5W-40 5л",
+    "price": 1850.00,
+    "stock": 42,
+    "isAvailable": true
+  },
+  "reviews": {
+    "productId": 1,
+    "totalReviews": 3,
+    "averageRating": 4.67,
+    "recentReviews": [
+      {
+        "id": "66f00101a1b2c3d4e5f60002",
+        "authorName": "Тарас Григорович",
+        "rating": 5,
+        "text": "Відмінна якість та стабільний тиск"
+      }
+    ]
+  },
+  "warnings": []
+}
+```
+
+#### 3. Verification of Distributed Tracing & Correlation ID
+
+Send a request with a custom correlation identifier:
+```bash
+curl -i -X GET "http://localhost:5000/api/aggregator/products/1" \
+     -H "X-Correlation-Id: trace-custom-987654321" \
+     -H "Accept: application/json"
+```
+*Verification:*
+- Inspect HTTP response headers: `X-Correlation-Id: trace-custom-987654321`.
+- In the Aspire Dashboard **Traces** tab, filter by correlation ID to trace the end-to-end request timeline: `gateway` $\to$ `aggregator` $\to$ `catalog-api` / `reviews-api` $\to$ `sqlserver` / `mongodb`.
+
+#### 4. Verification of Partial Degradation Resilience (`SafeAsync`)
+
+If `reviews-api` is stopped or unreachable, the aggregator gracefully degrades with HTTP 200 OK:
+```bash
+curl -i -X GET "http://localhost:5000/api/aggregator/products/1" \
+     -H "Accept: application/json"
+```
+*Resilient Response (HTTP 200 OK):*
+```json
+{
+  "productId": 1,
+  "product": {
+    "id": 1,
+    "name": "Моторна олива Motul 8100 X-cess Gen2 5W-40 5л",
+    "price": 1850.00
+  },
+  "reviews": null,
+  "warnings": [
+    "reviews-api is unavailable: Connection refused"
+  ]
+}
+```
+Client application receives the product data uninterrupted, while warnings highlight the degraded components.

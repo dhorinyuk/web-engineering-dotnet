@@ -6,22 +6,19 @@ using Orders.Api.Middleware;
 using Orders.Bll.Mapping;
 using Orders.Bll.Services;
 using Orders.Dal;
+using Platform.ServiceDefaults;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Serilog Setup
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console());
+// Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
+builder.AddServiceDefaults();
 
 // 2. Database Connection & Unit of Work (Scoped)
 var connectionString = builder.Configuration.GetConnectionString("OrdersDb")
-    ?? throw new InvalidOperationException("Connection string 'OrdersDb' is not configured.");
+    ?? "Server=localhost;Database=OrderingDb;User Id=sa;Password=YourStrong@Passw0rd!;TrustServerCertificate=True";
 
-builder.Services.AddScoped<IUnitOfWork>(sp => new UnitOfWork(connectionString));
+builder.Services.AddScoped<IUnitOfWork>(sp => new UnitOfWork(builder.Configuration.GetConnectionString("OrdersDb") ?? connectionString));
 
 // 3. Business Layer Services
 builder.Services.AddScoped<IOrderService, OrderService>();
@@ -42,6 +39,12 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Service defaults endpoints (/health, /alive)
+app.MapDefaultEndpoints();
+
+// Correlation ID middleware
+app.UseCorrelationId();
 
 // 7. HTTP Request Pipeline
 app.UseExceptionHandler();

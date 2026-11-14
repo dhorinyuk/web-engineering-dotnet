@@ -20,6 +20,15 @@ public static class DependencyInjection
         // MongoDB Options registration
         services.Configure<MongoDbOptions>(config.GetSection(MongoDbOptions.SectionName));
 
+        var connectionString = config.GetConnectionString("ReviewsDb");
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            services.Configure<MongoDbOptions>(options =>
+            {
+                options.ConnectionString = connectionString;
+            });
+        }
+
         // Persistence context
         services.AddSingleton<MongoDbContext>();
 

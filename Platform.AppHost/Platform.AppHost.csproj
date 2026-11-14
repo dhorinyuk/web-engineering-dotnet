@@ -18,10 +18,17 @@
     <ProjectReference Include="..\Services\Reviews\Reviews.WebApi\Reviews.WebApi.csproj">
       <IsAspireProjectResource>true</IsAspireProjectResource>
     </ProjectReference>
+    <ProjectReference Include="..\Platform.ApiGateway\Platform.ApiGateway.csproj">
+      <IsAspireProjectResource>true</IsAspireProjectResource>
+    </ProjectReference>
+    <ProjectReference Include="..\Platform.Aggregator\Platform.Aggregator.csproj">
+      <IsAspireProjectResource>true</IsAspireProjectResource>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" Version="9.0.0" />
+    <PackageReference Include="Aspire.Hosting.MongoDB" Version="9.0.0" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="9.0.0" />
   </ItemGroup>
 </Project>

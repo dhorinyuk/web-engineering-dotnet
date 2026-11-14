@@ -19,6 +19,7 @@ public class MongoDbContext
         settings.ConnectTimeout = TimeSpan.FromMilliseconds(opt.ConnectTimeoutMs);
         settings.MaxConnectionPoolSize = opt.MaxConnectionPoolSize;
         settings.MinConnectionPoolSize = opt.MinConnectionPoolSize;
+        settings.ClusterConfigurator = cb => cb.Subscribe(new MongoDB.Driver.Core.Extensions.DiagnosticSources.DiagnosticsActivityEventSubscriber());
 
         _client = new MongoClient(settings);
         _database = _client.GetDatabase(opt.DatabaseName);
