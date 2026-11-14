@@ -231,6 +231,31 @@ products ||--|| reviews_summary : "aggregated reviews cache (1:1)"
 │   ├── appsettings.json               # Connection strings and configuration
 │   └── Platform.AppHost.csproj
 ├── Services/
+│   ├── Catalog/                       # Lab 03: EF Core 3-tier Catalog Microservice
+│   │   ├── Catalog.Domain/            # Rich Domain Entities, Encapsulated Invariants & Domain Exceptions
+│   │   │   ├── Entities/              # Product, Brand, Category, ProductDetails, ProductCategory, ProductImage
+│   │   │   └── Exceptions/            # DomainException, EntityNotFoundException, ConflictException
+│   │   ├── Catalog.Dal/               # EF Core DbContext, Configurations, Repositories, UoW & Migrations
+│   │   │   ├── Configurations/        # Product, Brand, Category, ProductDetails, ProductCategory, ProductImage
+│   │   │   ├── Migrations/            # EF Core InitialCreate & Idempotent SQL script
+│   │   │   ├── Repositories/          # Generic Repo, ProductRepo (Eager, Explicit, LINQ M:N), BrandRepo, CategoryRepo
+│   │   │   ├── Specifications/        # ISpecification, BaseSpecification, SpecificationEvaluator
+│   │   │   ├── CatalogDbContext.cs
+│   │   │   ├── DbInitializer.cs       # Programmatic idempotent seeding
+│   │   │   ├── IUnitOfWork.cs
+│   │   │   └── UnitOfWork.cs
+│   │   ├── Catalog.Bll/               # Business Logic Layer (Services, DTOs, AutoMapper, FluentValidation, Specifications)
+│   │   │   ├── Common/                # PagedResult, ProductQueryParams
+│   │   │   ├── Dtos/                  # ProductDto, CreateProductDto, UpdateProductDto, BrandDto, CategoryDto
+│   │   │   ├── Mapping/               # AutoMapper CatalogMappingProfile
+│   │   │   ├── Services/              # ProductService, BrandService, CategoryService (via IUnitOfWork)
+│   │   │   ├── Specifications/        # ProductFilterPaginatedSpec, ProductFilterCountSpec
+│   │   │   └── Validators/            # FluentValidation Validators
+│   │   └── Catalog.Api/               # ASP.NET Core Web API (Controllers, Swagger, Serilog, ProblemDetails)
+│   │       ├── Controllers/           # ProductsController, BrandsController, CategoriesController
+│   │       ├── Middleware/            # CatalogExceptionHandler (RFC 7807 ProblemDetails)
+│   │       ├── Program.cs
+│   │       └── appsettings.json
 │   └── Orders/
 │       ├── Orders.Domain/             # Pure domain models and domain exceptions
 │       │   ├── Entities/              # Customer, Order, OrderDetails, Product, OrderItem, OrderStatusHistory
@@ -360,6 +385,150 @@ curl -X POST "http://localhost:5000/api/orders/1/confirm" \
 - **Non-existent Order:** `GET /api/orders/9999` returns `404 Not Found` with RFC 7807 JSON `ProblemDetails`.
 - **Duplicate Confirmation:** Confirming an already confirmed order returns `409 Conflict`.
 - **Validation Failure:** Negative `units` or missing items return `400 Bad Request`.
+
+---
+
+## Laboratory Work #3: 3-Tier Architecture on Entity Framework Core
+
+### 1. Architecture Design and Layer Responsibilities
+
+The Catalog Service is built on Entity Framework Core (.NET 8) strictly adhering to domain-driven principles and 14 automated verification criteria:
+
+```
+[ HTTP Client / Swagger / Aspire ]
+                |
+                v
+       Catalog.Api (Presentation)
+  - Thin API Controllers ([Route("api/[controller]")])
+  - Async action methods (Task<ActionResult<T>>)
+  - Standard HTTP statuses (200, 201 CreatedAtAction, 204, 400, 404, 409)
+  - Global ProblemDetails Exception Handler (CatalogExceptionHandler: IExceptionHandler)
+  - Serilog structured logging with EF command level override
+  - Swagger OpenAPI interactive documentation
+                |
+                v
+       Catalog.Bll (Business Logic)
+  - Exclusively operates through IUnitOfWork (no direct DbContext)
+  - Specification Pattern integration (ProductFilterPaginatedSpec, ProductFilterCountSpec)
+  - SQL-level pagination, filtering and dynamic sorting
+  - FluentValidation integration (AbstractValidator<T>) + DataAnnotations
+  - AutoMapper profiles (CatalogMappingProfile)
+  - Database-level rule validations throwing EntityNotFoundException & ConflictException
+                |
+                v
+       Catalog.Dal (Data Access)
+  - CatalogDbContext applying IEntityTypeConfiguration<T> from assembly
+  - Explicit relationships: 1:1 (PK=FK), 1:N (Cascade), M:N (Junction with AddedAt payload)
+  - Check constraints (CK_Products_Price, CK_Products_Stock, etc.) & Unique indexes
+  - Async Generic Repository (IGenericRepository<T>, GenericRepository<T>)
+  - Unit of Work (IUnitOfWork, UnitOfWork) controlling SaveChangesAsync boundary
+  - 3 Specific Repositories:
+      1. Eager Loading (.Include + .ThenInclude single query)
+      2. Explicit Loading (.Entry().Collection().Query().LoadAsync())
+      3. LINQ to Entities M:N query (filtered & sorted by junction AddedAt)
+  - Static seeding (HasData) & Programmatic seeding (DbInitializer.SeedAsync)
+  - InitialCreate migration & Idempotent SQL migration script (InitialCreate.sql)
+                |
+                v
+       Catalog.Domain (Domain Entities)
+  - Encapsulated business rules: private setters, private parameterless constructors
+  - Public constructors with invariant checks throwing DomainException
+  - State mutations strictly through domain methods (UpdatePrice, AddStock, RemoveStock)
+  - Domain exceptions: DomainException, EntityNotFoundException, ConflictException
+```
+
+### 2. How to Run Catalog Service
+
+#### Option A: Run via .NET Aspire AppHost
+
+```powershell
+dotnet run --project Platform.AppHost
+```
+
+#### Option B: Run Catalog.Api Directly
+
+```powershell
+dotnet run --project Services/Catalog/Catalog.Api
+```
+
+Swagger UI will be available at: `http://localhost:5000/swagger` (or configured HTTPS port).
+
+---
+
+### 3. API Verification with cURL
+
+#### 1. SQL-Level Paginated, Filtered & Sorted Query (200 OK)
+```bash
+curl -X GET "http://localhost:5000/api/products?page=1&pageSize=10&sortBy=price&sortDescending=false" \
+     -H "Accept: application/json"
+```
+
+#### 2. Eager Loading Full Aggregate (200 OK)
+```bash
+curl -X GET "http://localhost:5000/api/products/1" \
+     -H "Accept: application/json"
+```
+
+#### 3. Explicit Loading Demonstration (200 OK)
+```bash
+curl -X GET "http://localhost:5000/api/products/1/explicit" \
+     -H "Accept: application/json"
+```
+
+#### 4. LINQ M:N Junction Query by AddedAt (200 OK)
+```bash
+curl -X GET "http://localhost:5000/api/products/categories/2/recent?days=30" \
+     -H "Accept: application/json"
+```
+
+#### 5. Create Product (201 Created with Location Header)
+```bash
+curl -X POST "http://localhost:5000/api/products" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "brandId": 1,
+       "sku": "MOT-300V-15W50-2L",
+       "slug": "motul-300v-competition-15w50-2l",
+       "name": "Моторна олива Motul 300V 15W-50 2л",
+       "price": 1450.00,
+       "costPrice": 980.00,
+       "weightKg": 1.950,
+       "stock": 25,
+       "isAvailable": true,
+       "categoryIds": [1, 2],
+       "primaryCategoryId": 2,
+       "details": {
+         "technicalDescription": "100% синтетична спортивна олива з технологією ESTER Core.",
+         "warrantyMonths": 60,
+         "countryOfOrigin": "France"
+       }
+     }'
+```
+
+#### 6. Update Price via Domain Method (200 OK)
+```bash
+curl -X PATCH "http://localhost:5000/api/products/1/price" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "price": 1950.00,
+       "costPrice": 1400.00
+     }'
+```
+
+#### 7. Update Stock via Domain Method (200 OK)
+```bash
+curl -X PATCH "http://localhost:5000/api/products/1/stock" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "quantity": 10,
+       "operation": "add"
+     }'
+```
+
+#### 8. Verification of Error Handling (RFC 7807 ProblemDetails)
+- **404 Not Found:** `GET /api/products/9999` returns `404 Not Found` with `EntityNotFoundException` mapped to ProblemDetails.
+- **409 Conflict:** Creating a product with duplicate SKU returns `409 Conflict` with `ConflictException`.
+- **400 Validation Problem:** Passing negative price or empty name returns `400 Bad Request` with `ValidationProblemDetails` containing field-level errors.
 
 ---
 

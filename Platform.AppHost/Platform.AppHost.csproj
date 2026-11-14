@@ -9,6 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Services\Catalog\Catalog.Api\Catalog.Api.csproj">
+      <IsAspireProjectResource>true</IsAspireProjectResource>
+    </ProjectReference>
     <ProjectReference Include="..\Services\Orders\Orders.Api\Orders.Api.csproj">
       <IsAspireProjectResource>true</IsAspireProjectResource>
     </ProjectReference>
