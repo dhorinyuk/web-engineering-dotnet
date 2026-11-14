@@ -18,27 +18,39 @@ var mongo = builder.AddMongoDB("mongodb")
 
 var reviewsDb = mongo.AddDatabase("ReviewsDb");
 
+// Redis cache container with persistent volume
+var redis = builder.AddRedis("redis")
+    .WithDataVolume();
+
 // 1. Core domain microservices
 var ordersApi = builder.AddProject<Projects.Orders_Api>("orders-api")
     .WithReference(ordersDb)
-    .WaitFor(ordersDb);
+    .WaitFor(ordersDb)
+    .WithReference(redis)
+    .WaitFor(redis);
 
 var catalogApi = builder.AddProject<Projects.Catalog_Api>("catalog-api")
     .WithReference(catalogDb)
-    .WaitFor(catalogDb);
+    .WaitFor(catalogDb)
+    .WithReference(redis)
+    .WaitFor(redis);
 
 var reviewsApi = builder.AddProject<Projects.Reviews_WebApi>("reviews-api")
     .WithReference(reviewsDb)
-    .WaitFor(reviewsDb);
+    .WaitFor(reviewsDb)
+    .WithReference(redis)
+    .WaitFor(redis);
 
-// 2. Composite Aggregator (waits for core microservices)
+// 2. Composite Aggregator (waits for core microservices & redis)
 var aggregator = builder.AddProject<Projects.Platform_Aggregator>("aggregator")
     .WithReference(ordersApi)
     .WithReference(catalogApi)
     .WithReference(reviewsApi)
+    .WithReference(redis)
     .WaitFor(ordersApi)
     .WaitFor(catalogApi)
-    .WaitFor(reviewsApi);
+    .WaitFor(reviewsApi)
+    .WaitFor(redis);
 
 // 3. YARP API Gateway on fixed port 5000 (waits for aggregator & microservices)
 builder.AddProject<Projects.Platform_ApiGateway>("gateway")
