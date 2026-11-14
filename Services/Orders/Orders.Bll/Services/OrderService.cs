@@ -1,6 +1,8 @@
 using System.Data;
+using System.Diagnostics;
 using AutoMapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Orders.Bll.DTOs;
 using Orders.Dal;
 using Orders.Domain.Entities;
@@ -10,13 +12,16 @@ namespace Orders.Bll.Services;
 
 public class OrderService : IOrderService
 {
+    private static readonly ActivitySource ActivitySource = new("Orders.Api");
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly ILogger<OrderService>? _logger;
 
-    public OrderService(IUnitOfWork uow, IMapper mapper)
+    public OrderService(IUnitOfWork uow, IMapper mapper, ILogger<OrderService>? logger = null)
     {
         _uow = uow ?? throw new ArgumentNullException(nameof(uow));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _logger = logger;
     }
 
     public async Task<OrderDto> GetByIdAsync(long orderId, CancellationToken ct = default)
@@ -34,6 +39,9 @@ public class OrderService : IOrderService
     {
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
+
+        using var activity = ActivitySource.StartActivity("CreateOrderBusinessLogic");
+        activity?.SetTag("customer.id", dto.CustomerId);
 
         // Рівень 2 бізнес-валідації: перевірка клієнта в БД
         var customer = await _uow.Customers.GetByIdAsync(dto.CustomerId, ct);
@@ -121,6 +129,8 @@ public class OrderService : IOrderService
             }
 
             await _uow.CommitAsync(ct);
+        _logger?.LogInformation("Order {OrderId} created for customer {CustomerId} with total {TotalAmount}", order.Id, order.CustomerId, order.TotalAmount);
+        activity?.SetTag("order.id", order.Id);
         }
         catch (SqlException ex) when (ex.Number == 50001)
         {
@@ -148,6 +158,9 @@ public class OrderService : IOrderService
 
     public async Task ConfirmOrderAsync(long orderId, CancellationToken ct = default)
     {
+        using var activity = ActivitySource.StartActivity("ConfirmOrderBusinessLogic");
+        activity?.SetTag("order.id", orderId);
+
         await _uow.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
@@ -185,6 +198,8 @@ public class OrderService : IOrderService
 
             // 3. Фіксація транзакції
             await _uow.CommitAsync(ct);
+            _logger?.LogInformation("Order {OrderId} status changed to {Status}", orderId, "StockConfirmed");
+            activity?.SetTag("order.status", "StockConfirmed");
         }
         catch (SqlException ex) when (ex.Number == 50001)
         {

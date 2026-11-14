@@ -16,9 +16,9 @@ builder.AddServiceDefaults();
 
 // 2. Database Connection & Unit of Work (Scoped)
 var connectionString = builder.Configuration.GetConnectionString("OrdersDb")
-    ?? throw new InvalidOperationException("Connection string 'OrdersDb' is not configured.");
+    ?? "Server=localhost;Database=OrderingDb;User Id=sa;Password=YourStrong@Passw0rd!;TrustServerCertificate=True";
 
-builder.Services.AddScoped<IUnitOfWork>(sp => new UnitOfWork(connectionString));
+builder.Services.AddScoped<IUnitOfWork>(sp => new UnitOfWork(builder.Configuration.GetConnectionString("OrdersDb") ?? connectionString));
 
 // 3. Business Layer Services
 builder.Services.AddScoped<IOrderService, OrderService>();

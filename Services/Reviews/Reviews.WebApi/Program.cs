@@ -11,6 +11,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
 builder.AddServiceDefaults();
 
+// MongoDB connection string resolution
+var reviewsConnectionString = builder.Configuration.GetConnectionString("ReviewsDb");
+if (!string.IsNullOrEmpty(reviewsConnectionString))
+{
+    builder.Services.Configure<Reviews.Infrastructure.Configuration.MongoDbOptions>(options =>
+    {
+        options.ConnectionString = reviewsConnectionString;
+    });
+}
+
 // Criterion 7: Clean Architecture layers registration via extension methods
 builder.Services
     .AddApplication(builder.Configuration)

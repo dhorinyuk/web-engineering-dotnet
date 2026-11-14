@@ -11,6 +11,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Platform.ServiceDefaults.Correlation;
 using Serilog;
+using Serilog.Events;
 using Serilog.Formatting.Compact;
 
 namespace Platform.ServiceDefaults;
@@ -47,6 +48,9 @@ public static class Extensions
         builder.Services.AddSerilog((services, loggerConfig) =>
         {
             loggerConfig
+                .MinimumLevel.Is(builder.Environment.IsDevelopment() ? LogEventLevel.Debug : LogEventLevel.Information)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
                 .ReadFrom.Configuration(builder.Configuration)
                 .ReadFrom.Services(services)
                 .Enrich.FromLogContext()
@@ -86,6 +90,10 @@ public static class Extensions
                         options.RecordException = true;
                     })
                     .AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources")
+                    .AddSource("Orders.Api")
+                    .AddSource("Catalog.Api")
+                    .AddSource("Reviews.WebApi")
+                    .AddSource("Platform.Aggregator")
                     .AddSource(builder.Environment.ApplicationName);
             });
 

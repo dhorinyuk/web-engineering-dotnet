@@ -19,7 +19,7 @@ var connectionString = builder.Configuration.GetConnectionString("CatalogDb")
     ?? "Server=localhost;Database=CatalogDb;User Id=sa;Password=YourStrong@Passw0rd!;TrustServerCertificate=True";
 
 builder.Services.AddDbContext<CatalogDbContext>(options =>
-    options.UseSqlServer(connectionString, sql =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("CatalogDb") ?? connectionString, sql =>
     {
         sql.MigrationsAssembly(typeof(CatalogDbContext).Assembly.FullName);
     }));

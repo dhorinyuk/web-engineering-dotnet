@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AutoMapper;
 using Catalog.Bll.Common;
 using Catalog.Bll.Dtos;
@@ -5,18 +6,22 @@ using Catalog.Bll.Specifications;
 using Catalog.Dal;
 using Catalog.Domain.Entities;
 using Catalog.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Bll.Services;
 
 public class ProductService : IProductService
 {
+    private static readonly ActivitySource ActivitySource = new("Catalog.Api");
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly ILogger<ProductService>? _logger;
 
-    public ProductService(IUnitOfWork uow, IMapper mapper)
+    public ProductService(IUnitOfWork uow, IMapper mapper, ILogger<ProductService>? logger = null)
     {
         _uow = uow ?? throw new ArgumentNullException(nameof(uow));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _logger = logger;
     }
 
     // Criterion 10 & 14: Pagination, filtering, and sorting executed via Specification at SQL level
@@ -68,6 +73,8 @@ public class ProductService : IProductService
     // Criterion 7: Creation with DB-level invariant checks, domain encapsulation and AutoMapper
     public async Task<ProductDto> CreateProductAsync(CreateProductDto dto, CancellationToken ct = default)
     {
+        using var activity = ActivitySource.StartActivity("CreateProductBusinessLogic");
+        activity?.SetTag("product.sku", dto.Sku);
         // 1. Validate Brand exists
         var brand = await _uow.Brands.GetByIdAsync(dto.BrandId, ct);
         if (brand == null)
@@ -127,6 +134,8 @@ public class ProductService : IProductService
 
         await _uow.Products.AddAsync(product, ct);
         await _uow.SaveChangesAsync(ct);
+        _logger?.LogInformation("Product {ProductId} created with SKU {Sku} and price {Price}", product.Id, dto.Sku, dto.Price);
+        activity?.SetTag("product.id", product.Id);
 
         // Reload product with full graph for mapping
         var created = await _uow.Products.GetWithAllDetailsAsync(product.Id, ct) ?? product;
@@ -187,6 +196,10 @@ public class ProductService : IProductService
 
     public async Task<ProductDto> UpdatePriceAsync(int id, UpdatePriceDto dto, CancellationToken ct = default)
     {
+        using var activity = ActivitySource.StartActivity("UpdateProductPriceBusinessLogic");
+        activity?.SetTag("product.id", id);
+        activity?.SetTag("product.price", dto.Price);
+
         var product = await _uow.Products.GetWithAllDetailsAsync(id, ct);
         if (product == null)
             throw new EntityNotFoundException(nameof(Product), id);
@@ -196,12 +209,18 @@ public class ProductService : IProductService
 
         _uow.Products.Update(product);
         await _uow.SaveChangesAsync(ct);
+        _logger?.LogInformation("Product {ProductId} price updated to {Price}", id, dto.Price);
 
         return _mapper.Map<ProductDto>(product);
     }
 
     public async Task<ProductDto> UpdateStockAsync(int id, UpdateStockDto dto, CancellationToken ct = default)
     {
+        using var activity = ActivitySource.StartActivity("UpdateProductStockBusinessLogic");
+        activity?.SetTag("product.id", id);
+        activity?.SetTag("operation", dto.Operation);
+        activity?.SetTag("quantity", dto.Quantity);
+
         var product = await _uow.Products.GetWithAllDetailsAsync(id, ct);
         if (product == null)
             throw new EntityNotFoundException(nameof(Product), id);
@@ -218,6 +237,7 @@ public class ProductService : IProductService
 
         _uow.Products.Update(product);
         await _uow.SaveChangesAsync(ct);
+        _logger?.LogInformation("Product {ProductId} stock updated: operation {Operation}, quantity {Quantity}", id, dto.Operation, dto.Quantity);
 
         return _mapper.Map<ProductDto>(product);
     }
