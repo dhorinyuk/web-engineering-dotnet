@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package orders;
+
+option csharp_namespace = "Orders.Api.Grpc";
+
+service OrdersService {
+  rpc GetOrderById (GetOrderByIdRequest) returns (OrderResponse);
+}
+
+message GetOrderByIdRequest {
+  int64 id = 1;
+}
+
+message OrderItemResponse {
+  int64 product_id = 1;
+  string product_name = 2;
+  double unit_price = 3;
+  int32 units = 4;
+  double sub_total = 5;
+}
+
+message OrderResponse {
+  int64 id = 1;
+  string order_number = 2;
+  int64 customer_id = 3;
+  string status = 4;
+  double total_amount = 5;
+  string created_at = 6;
+  repeated OrderItemResponse items = 7;
+}

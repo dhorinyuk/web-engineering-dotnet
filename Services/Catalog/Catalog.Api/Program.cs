@@ -1,4 +1,5 @@
 using Catalog.Api.Middleware;
+using Catalog.Api.Services;
 using Catalog.Bll.Mapping;
 using Catalog.Bll.Services;
 using Catalog.Bll.Validators;
@@ -17,6 +18,13 @@ builder.AddServiceDefaults();
 // Caching: L1 Memory Cache (SizeLimit = 10_000) & L2 Redis Distributed Cache
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
 builder.AddRedisDistributedCache("redis");
+
+// gRPC Services & HTTP/2 Configuration
+builder.Services.AddGrpc();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
+});
 
 // Database Context registration
 var connectionString = builder.Configuration.GetConnectionString("CatalogDb")
@@ -86,6 +94,7 @@ app.UseSerilogRequestLogging();
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<CatalogGrpcService>();
 
 // Criterion 9: Idempotent database migration & programmatic seeding (skipped in production)
 if (!app.Environment.IsProduction())

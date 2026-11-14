@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package catalog;
+
+option csharp_namespace = "Catalog.Api.Grpc";
+
+service CatalogService {
+  rpc GetProductById (GetProductByIdRequest) returns (ProductResponse);
+  rpc GetProducts (GetProductsRequest) returns (ProductsListResponse);
+}
+
+message GetProductByIdRequest {
+  int32 id = 1;
+}
+
+message GetProductsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message CatalogProductDetails {
+  string technical_description = 1;
+  int32 warranty_months = 2;
+  string country_of_origin = 3;
+  string dimensions = 4;
+  string installation_guide_url = 5;
+}
+
+message CatalogProductImage {
+  int32 id = 1;
+  string url = 2;
+  int32 display_order = 3;
+  bool is_main = 4;
+}
+
+message CatalogProductCategory {
+  int32 category_id = 1;
+  string category_name = 2;
+  string category_slug = 3;
+  bool is_primary = 4;
+  string added_at = 5;
+}
+
+message ProductResponse {
+  int32 id = 1;
+  int32 brand_id = 2;
+  string brand_name = 3;
+  string sku = 4;
+  string slug = 5;
+  string name = 6;
+  double price = 7;
+  double cost_price = 8;
+  double weight_kg = 9;
+  int32 stock = 10;
+  bool is_available = 11;
+  string created_at = 12;
+  string updated_at = 13;
+  CatalogProductDetails details = 14;
+  repeated CatalogProductImage images = 15;
+  repeated CatalogProductCategory categories = 16;
+}
+
+message ProductsListResponse {
+  repeated ProductResponse items = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}

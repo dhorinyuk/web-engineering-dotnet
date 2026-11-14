@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orders.Api.Middleware;
+using Orders.Api.Services;
 using Orders.Bll.Mapping;
 using Orders.Bll.Services;
 using Orders.Dal;
@@ -17,6 +18,13 @@ builder.AddServiceDefaults();
 // Caching: L1 Memory Cache (SizeLimit = 10_000) & L2 Redis Distributed Cache
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
 builder.AddRedisDistributedCache("redis");
+
+// gRPC Services & HTTP/2 Configuration
+builder.Services.AddGrpc();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
+});
 
 // 2. Database Connection & Unit of Work (Scoped)
 var connectionString = builder.Configuration.GetConnectionString("OrdersDb")
@@ -62,6 +70,7 @@ if (app.Environment.IsDevelopment())
 app.UseSerilogRequestLogging();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<OrdersGrpcService>();
 
 app.Run();
 

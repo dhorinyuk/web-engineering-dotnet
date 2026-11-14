@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package reviews;
+
+option csharp_namespace = "Reviews.WebApi.Grpc";
+
+service ReviewsService {
+  rpc GetReviewsByProductId (GetReviewsByProductIdRequest) returns (ReviewsSummaryResponse);
+}
+
+message GetReviewsByProductIdRequest {
+  int64 product_id = 1;
+}
+
+message ReviewItemResponse {
+  string id = 1;
+  int64 product_id = 2;
+  string product_name = 3;
+  string author_name = 4;
+  int32 rating = 5;
+  string text = 6;
+  int32 comments_count = 7;
+  int32 version = 8;
+}
+
+message ReviewsSummaryResponse {
+  int64 product_id = 1;
+  int32 total_reviews = 2;
+  double average_rating = 3;
+  repeated ReviewItemResponse recent_reviews = 4;
+}

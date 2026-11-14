@@ -4,6 +4,7 @@ using Reviews.Infrastructure;
 using Reviews.Infrastructure.Services;
 using Reviews.WebApi.Mapping;
 using Reviews.WebApi.Middleware;
+using Reviews.WebApi.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,13 @@ builder.AddServiceDefaults();
 // Caching: L1 Memory Cache (SizeLimit = 10_000) & L2 Redis Distributed Cache
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
 builder.AddRedisDistributedCache("redis");
+
+// gRPC Services & HTTP/2 Configuration
+builder.Services.AddGrpc();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureEndpointDefaults(lo => lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
+});
 
 // MongoDB connection string resolution
 var reviewsConnectionString = builder.Configuration.GetConnectionString("ReviewsDb");
@@ -75,6 +83,7 @@ app.UseSerilogRequestLogging();
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<ReviewsGrpcService>();
 
 // Criterion 14: Idempotent database seeding (skipped in production)
 if (!app.Environment.IsProduction())
