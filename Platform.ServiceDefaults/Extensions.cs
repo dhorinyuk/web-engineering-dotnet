@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Platform.ServiceDefaults.Caching;
 using Platform.ServiceDefaults.Correlation;
 using Serilog;
 using Serilog.Events;
@@ -32,6 +33,10 @@ public static class Extensions
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
         builder.Services.AddTransient<CorrelationIdHandler>();
+
+        // Caching infrastructure registration
+        builder.Services.AddSingleton<CacheMetrics>();
+        builder.Services.AddSingleton<ITwoTierCacheService, TwoTierCacheService>();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
@@ -78,7 +83,8 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddProcessInstrumentation();
+                    .AddProcessInstrumentation()
+                    .AddMeter("Catalog.Cache");
             })
             .WithTracing(tracing =>
             {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using AutoMapper;
 using Catalog.Bll.Common;
 using Catalog.Bll.Dtos;
@@ -6,7 +7,10 @@ using Catalog.Bll.Specifications;
 using Catalog.Dal;
 using Catalog.Domain.Entities;
 using Catalog.Domain.Exceptions;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Platform.ServiceDefaults.Caching;
 
 namespace Catalog.Bll.Services;
 
@@ -15,13 +19,35 @@ public class ProductService : IProductService
     private static readonly ActivitySource ActivitySource = new("Catalog.Api");
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly IMemoryCache? _cache;
+    private readonly IDistributedCache? _distributedCache;
+    private readonly CacheMetrics? _cacheMetrics;
     private readonly ILogger<ProductService>? _logger;
 
-    public ProductService(IUnitOfWork uow, IMapper mapper, ILogger<ProductService>? logger = null)
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public ProductService(
+        IUnitOfWork uow,
+        IMapper mapper,
+        IMemoryCache? cache = null,
+        IDistributedCache? distributedCache = null,
+        CacheMetrics? cacheMetrics = null,
+        ILogger<ProductService>? logger = null)
     {
         _uow = uow ?? throw new ArgumentNullException(nameof(uow));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _cache = cache;
+        _distributedCache = distributedCache;
+        _cacheMetrics = cacheMetrics;
         _logger = logger;
+    }
+
+    public ProductService(IUnitOfWork uow, IMapper mapper, ILogger<ProductService>? logger)
+        : this(uow, mapper, null, null, null, logger)
+    {
     }
 
     // Criterion 10 & 14: Pagination, filtering, and sorting executed via Specification at SQL level
@@ -37,14 +63,92 @@ public class ProductService : IProductService
         return new PagedResult<ProductDto>(dtos, totalCount, query.Page, query.PageSize);
     }
 
-    // Criterion 6: Specific Repo 1 - Eager Loading with full graph
+    // Criterion 6: Specific Repo 1 - Eager Loading with full graph & Two-Tier Cache-aside (L1 Memory + L2 Redis)
     public async Task<ProductDto> GetProductByIdAsync(int id, CancellationToken ct = default)
     {
+        var cacheKey = $"catalog:product:{id}";
+
+        // 1. L1 Memory Cache Check
+        if (_cache != null && _cache.TryGetValue(cacheKey, out ProductDto? cached) && cached != null)
+        {
+            _cacheMetrics?.RecordHit("L1");
+            _logger?.LogDebug("Cache L1 HIT for key {Key}", cacheKey);
+            return cached;
+        }
+
+        _cacheMetrics?.RecordMiss("L1");
+        _logger?.LogDebug("Cache L1 MISS for key {Key}", cacheKey);
+
+        // 2. L2 Redis Distributed Cache Check
+        if (_distributedCache != null)
+        {
+            try
+            {
+                var l2Json = await _distributedCache.GetStringAsync(cacheKey, ct);
+                if (!string.IsNullOrEmpty(l2Json))
+                {
+                    _cacheMetrics?.RecordHit("L2");
+                    _logger?.LogDebug("Cache L2 HIT for key {Key}", cacheKey);
+                    var deserialized = JsonSerializer.Deserialize<ProductDto>(l2Json, JsonOptions);
+                    if (deserialized != null)
+                    {
+                        var l1Options = new MemoryCacheEntryOptions
+                        {
+                            Size = 1,
+                            SlidingExpiration = TimeSpan.FromMinutes(2),
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                        };
+                        _cache?.Set(cacheKey, deserialized, l1Options);
+                        return deserialized;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to read from L2 cache for key {Key}: {Message}", cacheKey, ex.Message);
+            }
+        }
+
+        _cacheMetrics?.RecordMiss("L2");
+        _logger?.LogDebug("Cache L2 MISS for key {Key}", cacheKey);
+
+        // 3. Database query (Criterion 6: Specific Repo 1 - Eager Loading with full graph)
         var product = await _uow.Products.GetWithAllDetailsAsync(id, ct);
         if (product == null)
             throw new EntityNotFoundException(nameof(Product), id);
 
-        return _mapper.Map<ProductDto>(product);
+        var dto = _mapper.Map<ProductDto>(product);
+
+        // 4. Populate L2 and L1 on return path
+        if (_distributedCache != null)
+        {
+            try
+            {
+                var l2Options = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30)
+                };
+                var serialized = JsonSerializer.Serialize(dto, JsonOptions);
+                await _distributedCache.SetStringAsync(cacheKey, serialized, l2Options, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to write to L2 cache for key {Key}: {Message}", cacheKey, ex.Message);
+            }
+        }
+
+        if (_cache != null)
+        {
+            var memOptions = new MemoryCacheEntryOptions
+            {
+                Size = 1,
+                SlidingExpiration = TimeSpan.FromMinutes(2),
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            };
+            _cache.Set(cacheKey, dto, memOptions);
+        }
+
+        return dto;
     }
 
     // Criterion 6: Specific Repo 2 - Explicit Loading on-demand
@@ -137,6 +241,11 @@ public class ProductService : IProductService
         _logger?.LogInformation("Product {ProductId} created with SKU {Sku} and price {Price}", product.Id, dto.Sku, dto.Price);
         activity?.SetTag("product.id", product.Id);
 
+        // Cache invalidation
+        _cache?.Remove("catalog:products:count");
+        _distributedCache?.Remove("catalog:products:count");
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", "catalog:products:count", "New product created");
+
         // Reload product with full graph for mapping
         var created = await _uow.Products.GetWithAllDetailsAsync(product.Id, ct) ?? product;
         return _mapper.Map<ProductDto>(created);
@@ -191,6 +300,11 @@ public class ProductService : IProductService
         _uow.Products.Update(product);
         await _uow.SaveChangesAsync(ct);
 
+        // Cache invalidation (synchronous)
+        _cache?.Remove($"catalog:product:{id}");
+        _distributedCache?.Remove($"catalog:product:{id}");
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"catalog:product:{id}", "Product details updated");
+
         return _mapper.Map<ProductDto>(product);
     }
 
@@ -210,6 +324,11 @@ public class ProductService : IProductService
         _uow.Products.Update(product);
         await _uow.SaveChangesAsync(ct);
         _logger?.LogInformation("Product {ProductId} price updated to {Price}", id, dto.Price);
+
+        // Cache invalidation (synchronous)
+        _cache?.Remove($"catalog:product:{id}");
+        _distributedCache?.Remove($"catalog:product:{id}");
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"catalog:product:{id}", "Product price updated");
 
         return _mapper.Map<ProductDto>(product);
     }
@@ -239,6 +358,11 @@ public class ProductService : IProductService
         await _uow.SaveChangesAsync(ct);
         _logger?.LogInformation("Product {ProductId} stock updated: operation {Operation}, quantity {Quantity}", id, dto.Operation, dto.Quantity);
 
+        // Cache invalidation (synchronous)
+        _cache?.Remove($"catalog:product:{id}");
+        _distributedCache?.Remove($"catalog:product:{id}");
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"catalog:product:{id}", "Product stock updated");
+
         return _mapper.Map<ProductDto>(product);
     }
 
@@ -250,5 +374,10 @@ public class ProductService : IProductService
 
         _uow.Products.Delete(product);
         await _uow.SaveChangesAsync(ct);
+
+        // Cache invalidation (synchronous)
+        _cache?.Remove($"catalog:product:{id}");
+        _distributedCache?.Remove($"catalog:product:{id}");
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"catalog:product:{id}", "Product deleted");
     }
 }

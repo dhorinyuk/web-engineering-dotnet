@@ -1,5 +1,8 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Platform.ServiceDefaults.Caching;
 using Reviews.Application.Common.Interfaces;
 using Reviews.Application.Common.Models;
 using Reviews.Application.DTOs;
@@ -14,16 +17,42 @@ public record GetReviewsListQuery(
 public class GetReviewsListQueryHandler : IRequestHandler<GetReviewsListQuery, PagedResult<ReviewDto>>
 {
     private readonly IReviewQueries _queries;
+    private readonly ITwoTierCacheService? _cache;
+    private readonly IMemoryCache? _memoryCache;
+    private readonly ILogger<GetReviewsListQueryHandler>? _logger;
 
-    public GetReviewsListQueryHandler(IReviewQueries queries)
+    public GetReviewsListQueryHandler(
+        IReviewQueries queries,
+        ITwoTierCacheService? cache = null,
+        IMemoryCache? memoryCache = null,
+        ILogger<GetReviewsListQueryHandler>? logger = null)
     {
         _queries = queries;
+        _cache = cache;
+        _memoryCache = memoryCache;
+        _logger = logger;
+    }
+
+    public GetReviewsListQueryHandler(IReviewQueries queries)
+        : this(queries, null, null, null)
+    {
     }
 
     public async Task<PagedResult<ReviewDto>> Handle(GetReviewsListQuery request, CancellationToken cancellationToken)
     {
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        if (request.ProductId.HasValue && _cache != null)
+        {
+            var cacheKey = $"reviews:product:{request.ProductId.Value}:{page}:{pageSize}";
+            var cached = await _cache.GetOrSetAsync(cacheKey, async () =>
+            {
+                return await _queries.GetListAsync(request.ProductId, page, pageSize, cancellationToken);
+            }, ct: cancellationToken);
+
+            if (cached != null) return cached;
+        }
 
         return await _queries.GetListAsync(request.ProductId, page, pageSize, cancellationToken);
     }

@@ -14,6 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
 builder.AddServiceDefaults();
 
+// Caching: L1 Memory Cache (SizeLimit = 10_000) & L2 Redis Distributed Cache
+builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
+builder.AddRedisDistributedCache("redis");
+
 // 2. Database Connection & Unit of Work (Scoped)
 var connectionString = builder.Configuration.GetConnectionString("OrdersDb")
     ?? "Server=localhost;Database=OrderingDb;User Id=sa;Password=YourStrong@Passw0rd!;TrustServerCertificate=True";

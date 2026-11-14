@@ -11,6 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Criterion 4: Service Defaults (Serilog + OTLP, OpenTelemetry, Health Checks, Service Discovery, CorrelationId)
 builder.AddServiceDefaults();
 
+// Caching: L1 Memory Cache (SizeLimit = 10_000) & L2 Redis Distributed Cache
+builder.Services.AddMemoryCache(o => o.SizeLimit = 10_000);
+builder.AddRedisDistributedCache("redis");
+
 // MongoDB connection string resolution
 var reviewsConnectionString = builder.Configuration.GetConnectionString("ReviewsDb");
 if (!string.IsNullOrEmpty(reviewsConnectionString))

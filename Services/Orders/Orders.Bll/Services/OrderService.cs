@@ -2,11 +2,13 @@ using System.Data;
 using System.Diagnostics;
 using AutoMapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Orders.Bll.DTOs;
 using Orders.Dal;
 using Orders.Domain.Entities;
 using Orders.Domain.Exceptions;
+using Platform.ServiceDefaults.Caching;
 
 namespace Orders.Bll.Services;
 
@@ -15,17 +17,43 @@ public class OrderService : IOrderService
     private static readonly ActivitySource ActivitySource = new("Orders.Api");
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly ITwoTierCacheService? _cache;
+    private readonly IMemoryCache? _memoryCache;
     private readonly ILogger<OrderService>? _logger;
 
-    public OrderService(IUnitOfWork uow, IMapper mapper, ILogger<OrderService>? logger = null)
+    public OrderService(
+        IUnitOfWork uow,
+        IMapper mapper,
+        ITwoTierCacheService? cache = null,
+        IMemoryCache? memoryCache = null,
+        ILogger<OrderService>? logger = null)
     {
         _uow = uow ?? throw new ArgumentNullException(nameof(uow));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _cache = cache;
+        _memoryCache = memoryCache;
         _logger = logger;
+    }
+
+    public OrderService(IUnitOfWork uow, IMapper mapper, ILogger<OrderService>? logger)
+        : this(uow, mapper, null, null, logger)
+    {
     }
 
     public async Task<OrderDto> GetByIdAsync(long orderId, CancellationToken ct = default)
     {
+        var cacheKey = $"orders:order:{orderId}";
+        if (_cache != null)
+        {
+            var cached = await _cache.GetOrSetAsync(cacheKey, async () =>
+            {
+                var o = await _uow.Orders.GetWithItemsAsync(orderId, ct);
+                return o == null ? null : _mapper.Map<OrderDto>(o);
+            }, ct: ct);
+
+            if (cached != null) return cached;
+        }
+
         var order = await _uow.Orders.GetWithItemsAsync(orderId, ct);
         if (order == null)
         {
@@ -153,6 +181,14 @@ public class OrderService : IOrderService
             throw;
         }
 
+        // Cache invalidation
+        _memoryCache?.Remove($"orders:order:{order.Id}");
+        if (_cache != null)
+        {
+            await _cache.RemoveAsync($"orders:order:{order.Id}", "Order created", ct);
+        }
+        _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"orders:order:{order.Id}", "Order created");
+
         return _mapper.Map<OrderDto>(order);
     }
 
@@ -200,6 +236,14 @@ public class OrderService : IOrderService
             await _uow.CommitAsync(ct);
             _logger?.LogInformation("Order {OrderId} status changed to {Status}", orderId, "StockConfirmed");
             activity?.SetTag("order.status", "StockConfirmed");
+
+            // Cache invalidation
+            _memoryCache?.Remove($"orders:order:{orderId}");
+            if (_cache != null)
+            {
+                await _cache.RemoveAsync($"orders:order:{orderId}", "Order confirmed", ct);
+            }
+            _logger?.LogInformation("Cache invalidated for key {Key}. Reason: {Reason}", $"orders:order:{orderId}", "Order confirmed");
         }
         catch (SqlException ex) when (ex.Number == 50001)
         {
